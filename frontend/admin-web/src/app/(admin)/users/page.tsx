@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, rolesApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -64,8 +65,7 @@ export default function UsersPage() {
       setForm({ name: '', email: '', password: '', roleId: '' });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create user';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create user'));
     },
   });
 

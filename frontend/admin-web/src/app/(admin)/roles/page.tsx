@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rolesApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -72,8 +73,7 @@ export default function RolesPage() {
       setForm({ name: '', permissions: [] });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create role';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create role'));
     },
   });
 
@@ -90,8 +90,7 @@ export default function RolesPage() {
       setEditRole(null);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to update role';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to update role'));
     },
   });
 

@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamsApi, participantsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -58,8 +59,7 @@ export default function TeamsPage() {
       setForm({ name: '', memberIds: [] });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create team';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create team'));
     },
   });
 
@@ -76,8 +76,7 @@ export default function TeamsPage() {
       setEditTeam(null);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to update team';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to update team'));
     },
   });
 

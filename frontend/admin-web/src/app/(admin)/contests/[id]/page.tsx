@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sectionsApi, questionsApi, contestsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
@@ -127,8 +128,7 @@ export default function ContestDetailPage() {
       setSectionTitle('');
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create section';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create section'));
     },
   });
 
@@ -184,8 +184,7 @@ export default function ContestDetailPage() {
       setMcqForm({ ...EMPTY_MCQ });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create MCQ';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create MCQ'));
     },
   });
 
@@ -237,8 +236,7 @@ export default function ContestDetailPage() {
       setCodingForm({ ...EMPTY_CODING });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create coding problem';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create coding problem'));
     },
   });
 

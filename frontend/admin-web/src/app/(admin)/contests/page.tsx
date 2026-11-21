@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contestsApi, rubricsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -143,8 +144,7 @@ export default function ContestsPage() {
       setForm(getDefaultForm());
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to create contest';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to create contest'));
     },
   });
 
@@ -168,8 +168,7 @@ export default function ContestsPage() {
       setEditContest(null);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to update contest';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to update contest'));
     },
   });
 

@@ -92,4 +92,22 @@ apiClient.interceptors.response.use(
   }
 );
 
+export function getErrorMessage(err: any, fallback = 'An unexpected error occurred'): string {
+  if (!err) return fallback;
+  const errorObj = err.response?.data?.error;
+  if (errorObj?.details) {
+    if (Array.isArray(errorObj.details)) {
+      return errorObj.details
+        .map((d: any) => (d.message ? (d.path ? `${d.path}: ${d.message}` : d.message) : typeof d === 'string' ? d : JSON.stringify(d)))
+        .join(', ');
+    }
+    if (typeof errorObj.details === 'string') return errorObj.details;
+    if (typeof errorObj.details === 'object') return Object.values(errorObj.details).join(', ');
+  }
+  if (errorObj?.message) return errorObj.message;
+  if (err.response?.data?.message) return err.response.data.message;
+  if (err.message) return err.message;
+  return fallback;
+}
+
 export default apiClient;

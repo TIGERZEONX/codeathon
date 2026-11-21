@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { participantsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -38,12 +39,16 @@ export default function ParticipantsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       setErrorMsg(null);
+      const trimmedPassword = form.password.trim();
+      if (trimmedPassword && trimmedPassword.length < 6) {
+        throw new Error('Password must be at least 6 characters (or leave blank to use default Codeathon@123)');
+      }
       return participantsApi.create({
         rollNumber: form.rollNumber.trim(),
         name: form.name.trim(),
         email: form.email.trim(),
         department: form.department.trim() || 'Computer Science',
-        password: form.password.trim() || 'Codeathon@123',
+        password: trimmedPassword || 'Codeathon@123',
       });
     },
     onSuccess: () => {
@@ -52,8 +57,7 @@ export default function ParticipantsPage() {
       setForm({ rollNumber: '', name: '', email: '', department: '', password: '' });
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'Failed to register candidate';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'Failed to register candidate'));
     },
   });
 
@@ -68,8 +72,7 @@ export default function ParticipantsPage() {
       setCsvText('');
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.message || err.message || 'CSV Import failed';
-      setErrorMsg(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      setErrorMsg(getErrorMessage(err, 'CSV Import failed'));
     },
   });
 
@@ -243,7 +246,12 @@ export default function ParticipantsPage() {
             type="password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            helperText="Leave blank to default to 'Codeathon@123'."
+            placeholder="Min. 6 chars (default: Codeathon@123)"
+            helperText={
+              form.password && form.password.trim().length > 0 && form.password.trim().length < 6
+                ? 'Password must be at least 6 characters'
+                : "Leave blank to default to 'Codeathon@123'."
+            }
           />
           <div className="flex gap-2.5 justify-end pt-2">
             <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
