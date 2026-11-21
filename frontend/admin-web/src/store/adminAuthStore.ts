@@ -6,6 +6,7 @@ interface AdminAuthState {
   accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  initAuth: () => void;
   setAuth: (user: UserSession, accessToken: string) => void;
   clearAuth: () => void;
   setLoading: (loading: boolean) => void;
@@ -13,15 +14,42 @@ interface AdminAuthState {
   isSuperAdmin: () => boolean;
 }
 
+const getStoredAuth = () => {
+  if (typeof window !== 'undefined') {
+    const token = sessionStorage.getItem('admin_access_token');
+    const storedUser = sessionStorage.getItem('admin_user');
+    if (token) {
+      try {
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        return { accessToken: token, user, isAuthenticated: true };
+      } catch (e) {}
+    }
+  }
+  return { accessToken: null, user: null, isAuthenticated: false };
+};
+
+const initial = getStoredAuth();
+
 export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
-  user: null,
-  accessToken: null,
-  isLoading: true,
-  isAuthenticated: false,
+  user: initial.user,
+  accessToken: initial.accessToken,
+  isLoading: false,
+  isAuthenticated: initial.isAuthenticated,
+
+  initAuth: () => {
+    const auth = getStoredAuth();
+    set({
+      user: auth.user,
+      accessToken: auth.accessToken,
+      isAuthenticated: auth.isAuthenticated,
+      isLoading: false,
+    });
+  },
 
   setAuth: (user, accessToken) => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('admin_access_token', accessToken);
+      sessionStorage.setItem('admin_user', JSON.stringify(user));
     }
     set({ user, accessToken, isAuthenticated: true, isLoading: false });
   },
@@ -29,6 +57,7 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
   clearAuth: () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('admin_access_token');
+      sessionStorage.removeItem('admin_user');
     }
     set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
   },
@@ -44,6 +73,6 @@ export const useAdminAuthStore = create<AdminAuthState>((set, get) => ({
 
   isSuperAdmin: () => {
     const { user } = get();
-    return user?.isSuperAdmin === true || user?.role === 'super_admin';
+    return user?.isSuperAdmin === true || (user as any)?.role === 'super_admin';
   },
 }));

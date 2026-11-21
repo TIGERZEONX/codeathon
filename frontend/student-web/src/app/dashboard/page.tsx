@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { contestApi, authApi } from '@/lib/api';
@@ -56,7 +57,15 @@ function AttemptBadge({ status }: { status?: string }) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user, clearAuth, isAuthenticated, initAuth } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') : null;
+    if (!token && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, initAuth, router]);
 
   const { data: contests = [], isLoading } = useQuery({
     queryKey: ['assigned-contests'],

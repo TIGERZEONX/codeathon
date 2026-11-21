@@ -35,13 +35,17 @@ const NAV_ITEMS = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, isLoading, user, clearAuth, isSuperAdmin } = useAdminAuthStore();
+  const { isAuthenticated, isLoading, user, clearAuth, isSuperAdmin, initAuth } = useAdminAuthStore();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    initAuth();
+  }, [initAuth]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, router]);
 
   const logoutMutation = useMutation({
     mutationFn: () => adminAuthApi.logout(),

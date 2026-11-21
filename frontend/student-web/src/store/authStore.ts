@@ -6,21 +6,49 @@ interface AuthState {
   accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  initAuth: () => void;
   setAuth: (user: UserSession, accessToken: string) => void;
   clearAuth: () => void;
   setLoading: (loading: boolean) => void;
   hasPermission: (permission: string) => boolean;
 }
 
+const getStoredAuth = () => {
+  if (typeof window !== 'undefined') {
+    const token = sessionStorage.getItem('access_token');
+    const storedUser = sessionStorage.getItem('user');
+    if (token) {
+      try {
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        return { accessToken: token, user, isAuthenticated: true };
+      } catch (e) {}
+    }
+  }
+  return { accessToken: null, user: null, isAuthenticated: false };
+};
+
+const initial = getStoredAuth();
+
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: null,
-  accessToken: null,
-  isLoading: true,
-  isAuthenticated: false,
+  user: initial.user,
+  accessToken: initial.accessToken,
+  isLoading: false,
+  isAuthenticated: initial.isAuthenticated,
+
+  initAuth: () => {
+    const auth = getStoredAuth();
+    set({
+      user: auth.user,
+      accessToken: auth.accessToken,
+      isAuthenticated: auth.isAuthenticated,
+      isLoading: false,
+    });
+  },
 
   setAuth: (user, accessToken) => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('access_token', accessToken);
+      sessionStorage.setItem('user', JSON.stringify(user));
     }
     set({ user, accessToken, isAuthenticated: true, isLoading: false });
   },
@@ -28,6 +56,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   clearAuth: () => {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('access_token');
+      sessionStorage.removeItem('user');
     }
     set({ user: null, accessToken: null, isAuthenticated: false, isLoading: false });
   },
