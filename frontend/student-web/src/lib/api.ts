@@ -37,6 +37,11 @@ export const contestApi = {
     return res.data.data;
   },
 
+  getContest: async (contestId: string) => {
+    const res = await apiClient.get(`/student/contests/${contestId}`);
+    return res.data.data;
+  },
+
   startAttempt: async (contestId: string) => {
     const res = await apiClient.post(`/student/contests/${contestId}/start`);
     return res.data.data;

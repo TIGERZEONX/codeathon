@@ -7,6 +7,12 @@ export class AttemptsController {
     return successResponse(res, list);
   }
 
+  async getContestOverview(req, res) {
+    const contestId = req.params.id;
+    const overview = await attemptsService.getContestOverview(contestId, req.user);
+    return successResponse(res, overview);
+  }
+
   async startAttempt(req, res) {
     const contestId = req.params.id;
     const attempt = await attemptsService.startAttempt(contestId, req.user);

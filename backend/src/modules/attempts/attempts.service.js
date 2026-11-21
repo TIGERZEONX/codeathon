@@ -3,6 +3,7 @@ import { answerRepository } from './answers.repository.js';
 import { contestRepository } from '../contests/contests.repository.js';
 import { assignmentRepository } from '../assignments/assignments.repository.js';
 import { questionRepository } from '../questions/questions.repository.js';
+import { sectionRepository } from '../sections/sections.repository.js';
 import { submissionRepository } from '../submissions/submissions.repository.js';
 import { attendanceRepository } from '../attendance/attendance.repository.js';
 import { rubricRepository } from '../rubrics/rubrics.repository.js';
@@ -75,20 +76,83 @@ export class AttemptsService {
     return assignedContests;
   }
 
+  async getContestOverview(contestId, user) {
+    const contest = await contestRepository.findById(contestId);
+    if (!contest) throw ApiError.notFound('Contest not found');
+
+    const participant = await participantRepository.findById(user.userId);
+    const teamId = participant?.teamId || null;
+
+    const isAssigned = await assignmentRepository.isAssigned(contest.id, user.userId, teamId);
+    if (!isAssigned && !user.isSuperAdmin && user.role !== 'admin') {
+      // Auto-assign candidate so they can take contest smoothly
+      await assignmentRepository.create({
+        contestId: contest.id,
+        participantId: user.userId,
+        teamId: null,
+        assignedAt: new Date().toISOString(),
+      });
+    }
+
+    const questions = await questionRepository.findByContest(contestId);
+    const totalMarks = questions.reduce((sum, q) => sum + (q.marks || 0), 0);
+
+    const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
+
+    return {
+      id: contest.id,
+      title: contest.title,
+      description: contest.description,
+      instructions: contest.instructions,
+      startTime: contest.startTime,
+      endTime: contest.endTime,
+      durationMinutes: contest.durationMinutes,
+      gracePeriodMinutes: contest.gracePeriodMinutes || 0,
+      totalMarks,
+      questionCount: questions.length,
+      status: contest.status,
+      proctorConfig: contest.proctorConfig || {},
+      leaderboardConfig: contest.leaderboardConfig || {},
+      attempt: attempt
+        ? {
+            id: attempt.id,
+            status: attempt.status,
+            startedAt: attempt.startedAt,
+            endsAt: attempt.endsAt,
+            remainingSeconds: attempt.remainingSeconds,
+            finalScore: attempt.finalScore,
+          }
+        : null,
+    };
+  }
+
   async startAttempt(contestId, user) {
     const contest = await contestRepository.findById(contestId);
     if (!contest) throw ApiError.notFound('Contest not found');
 
     const now = Date.now();
+    const isLive = contest.status === 'live' || contest.status === CONTEST_STATUS.LIVE;
     const startWindow = new Date(contest.startTime).getTime();
     const endWindow = new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000;
 
-    if (now < startWindow && !user.isSuperAdmin) {
+    if (!isLive && now < startWindow && !user.isSuperAdmin) {
       throw ApiError.badRequest('Contest has not started yet. Please wait for start time.', 'CONTEST_NOT_STARTED');
     }
 
-    if (now > endWindow && !user.isSuperAdmin) {
+    if (now > endWindow && !user.isSuperAdmin && !isLive) {
       throw ApiError.badRequest('Contest window has ended.', 'CONTEST_ENDED');
+    }
+
+    // Auto-assign student if not assigned
+    const participant = await participantRepository.findById(user.userId);
+    const isAssigned = await assignmentRepository.isAssigned(contest.id, user.userId, participant?.teamId);
+    if (!isAssigned) {
+      await assignmentRepository.create({
+        contestId: contest.id,
+        participantId: user.userId,
+        teamId: null,
+        assignedAt: new Date().toISOString(),
+      });
     }
 
     // Check existing attempt
@@ -126,7 +190,6 @@ export class AttemptsService {
 
     // Mark attendance Present automatically
     const existingAttendance = await attendanceRepository.findByContestAndUser(contestId, user.userId);
-    const participant = await participantRepository.findById(user.userId);
 
     if (existingAttendance) {
       await attendanceRepository.update(existingAttendance.id, {
@@ -229,6 +292,25 @@ export class AttemptsService {
       };
     });
 
+    const sections = await sectionRepository.findByContest(contestId);
+    const sectionList = sections.length > 0
+      ? sections.map((sec) => ({
+          _id: sec.id || sec._id,
+          id: sec.id || sec._id,
+          title: sec.title,
+          order: sec.order || 0,
+          questions: sanitizedQuestions.filter((q) => q.sectionId === (sec.id || sec._id)),
+        }))
+      : [
+          {
+            _id: 'default_section',
+            id: 'default_section',
+            title: 'General Assessment',
+            order: 0,
+            questions: sanitizedQuestions,
+          },
+        ];
+
     const savedAnswers = await answerRepository.findByAttempt(attempt.id);
 
     return {
@@ -248,6 +330,8 @@ export class AttemptsService {
         remainingSeconds: timing.remainingSeconds,
         finalScore: attempt.finalScore,
       },
+      remainingSeconds: timing.remainingSeconds,
+      sections: sectionList,
       questions: sanitizedQuestions,
       savedAnswers,
       serverTime: new Date().toISOString(),

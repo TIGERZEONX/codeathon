@@ -29,7 +29,7 @@ export default function ContestEntryPage() {
 
   const { data: contestData, isLoading } = useQuery({
     queryKey: ['contest', id],
-    queryFn: () => contestApi.getAttemptState(id).catch(() => null),
+    queryFn: () => contestApi.getContest(id).catch(() => null),
     retry: false,
   });
 
@@ -40,15 +40,16 @@ export default function ContestEntryPage() {
   });
 
   useEffect(() => {
-    if (attemptData) {
-      const a = attemptData as { status?: string };
+    const raw = (contestData as any)?.attempt || attemptData;
+    if (raw) {
+      const a = (raw as any)?.attempt || raw;
       if (a?.status === 'submitted' || a?.status === 'graded') {
         router.replace(`/contest/${id}/results`);
       } else if (a?.status === 'in_progress') {
         router.replace(`/contest/${id}/attempt`);
       }
     }
-  }, [attemptData, id, router]);
+  }, [contestData, attemptData, id, router]);
 
   const startMutation = useMutation({
     mutationFn: () => contestApi.startAttempt(id),
@@ -265,9 +266,15 @@ export default function ContestEntryPage() {
           )}
 
           {startMutation.isError && (
-            <p className="text-rose-600 text-xs font-medium mt-3">
-              {(startMutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed to start. Please try again.'}
-            </p>
+            <div className="flex items-center gap-2 mt-3 px-4 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <ShieldAlert className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>
+                {(startMutation.error as any)?.response?.data?.error?.message ||
+                  (startMutation.error as any)?.response?.data?.message ||
+                  (startMutation.error as any)?.message ||
+                  'Failed to start. Please try again.'}
+              </span>
+            </div>
           )}
         </div>
       </main>

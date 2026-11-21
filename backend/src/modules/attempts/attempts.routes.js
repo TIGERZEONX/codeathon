@@ -17,6 +17,12 @@ router.get(
   asyncHandler((req, res) => attemptsController.getAssignedContests(req, res))
 );
 
+// Get single contest overview details (before starting test)
+router.get(
+  '/:id',
+  asyncHandler((req, res) => attemptsController.getContestOverview(req, res))
+);
+
 // Start contest attempt
 router.post(
   '/:id/start',
