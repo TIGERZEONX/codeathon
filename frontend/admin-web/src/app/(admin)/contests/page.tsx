@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contestsApi, rubricsApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/apiClient';
@@ -81,24 +82,36 @@ const getDefaultForm = () => {
 };
 
 const safeToIso = (val: string | undefined, fallback: Date): string => {
-  if (!val || !val.trim()) return fallback.toISOString();
+  if (!val || typeof val !== 'string' || !val.trim()) return fallback.toISOString();
   const d = new Date(val);
   if (!isNaN(d.getTime())) return d.toISOString();
 
   const parts = val.trim().split(/[-/T\s:]+/);
-  if (parts.length >= 3 && Number(parts[2]) >= 2000) {
-    const day = Number(parts[0]);
-    const month = Number(parts[1]) - 1;
-    const year = Number(parts[2]);
-    const hour = Number(parts[3]) || 0;
-    const min = Number(parts[4]) || 0;
-    const parsed = new Date(year, month, day, hour, min);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  if (parts.length >= 3) {
+    if (Number(parts[2]) >= 2000) {
+      const day = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const year = Number(parts[2]);
+      const hour = Number(parts[3]) || 0;
+      const min = Number(parts[4]) || 0;
+      const parsed = new Date(year, month, day, hour, min);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
+    if (Number(parts[0]) >= 2000) {
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const hour = Number(parts[3]) || 0;
+      const min = Number(parts[4]) || 0;
+      const parsed = new Date(year, month, day, hour, min);
+      if (!isNaN(parsed.getTime())) return parsed.toISOString();
+    }
   }
   return fallback.toISOString();
 };
 
 export default function ContestsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [editContest, setEditContest] = useState<Contest | null>(null);
@@ -171,10 +184,14 @@ export default function ContestsPage() {
         },
       });
     },
-    onSuccess: () => {
+    onSuccess: (newContest: any) => {
       qc.invalidateQueries({ queryKey: ['contests'] });
       setShowCreate(false);
       setForm(getDefaultForm());
+      const newId = newContest?._id || newContest?.id;
+      if (newId) {
+        router.push(`/contests/${newId}`);
+      }
     },
     onError: (err: any) => {
       setErrorMsg(getErrorMessage(err, 'Failed to create contest'));
@@ -537,13 +554,6 @@ export default function ContestsPage() {
               </label>
             </div>
           </div>
-
-          {errorMsg && (
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
 
           {errorMsg && (
             <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
