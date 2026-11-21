@@ -11,37 +11,77 @@ export const requirePermission = (permissionKey, sensitiveRecheck = false) => {
         return next(ApiError.unauthorized('Authentication required'));
       }
 
+      const roleStr = String(user.role || '').toLowerCase();
+      const roleNameStr = String(user.roleName || '').toLowerCase();
+
       // Super Admin bypasses all checks
-      if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.isSuperAdmin) {
+      if (
+        roleStr === 'super_admin' ||
+        roleStr === 'superadmin' ||
+        user.isSuperAdmin === true ||
+        roleNameStr.includes('super')
+      ) {
         return next();
       }
 
-      let permissions = user.permissions || [];
+      // Standard Admin has full operational privileges
+      const isStandardAdmin =
+        roleStr === 'admin' ||
+        roleNameStr === 'admin' ||
+        roleNameStr === 'administrator';
 
-      // If sensitive recheck is requested, query the fresh user and role from database
-      if (sensitiveRecheck) {
-        const freshUser = await userRepository.findById(user.userId);
-        if (!freshUser || !freshUser.isActive) {
-          return next(ApiError.unauthorized('Account deactivated or deleted'));
-        }
-        if (freshUser.role === SYSTEM_ROLES.SUPER_ADMIN) {
-          return next();
-        }
-        const freshRole = await roleRepository.findById(freshUser.roleId || freshUser.role);
-        permissions = freshRole ? freshRole.permissions : [];
+      const SUPER_ADMIN_ONLY_PERMS = [
+        'submissions.revoke',
+        'users_roles.create',
+        'users_roles.update',
+        'users_roles.delete',
+      ];
+
+      if (isStandardAdmin && !SUPER_ADMIN_ONLY_PERMS.includes(permissionKey)) {
+        return next();
       }
 
-      if (!permissions.includes(permissionKey)) {
-        return next(
-          ApiError.forbidden(
-            `Access denied. Required permission: ${permissionKey}`,
-            'PERMISSION_DENIED',
-            { requiredPermission: permissionKey }
-          )
-        );
+      let permissions = Array.isArray(user.permissions) ? user.permissions : [];
+
+      // If sensitive recheck or empty permissions, query the fresh user and role from database
+      if (sensitiveRecheck || permissions.length === 0) {
+        const freshUser = await userRepository.findById(user.userId || user.id);
+        if (freshUser) {
+          if (!freshUser.isActive) {
+            return next(ApiError.unauthorized('Account deactivated or deleted'));
+          }
+          const freshRoleStr = String(freshUser.role || '').toLowerCase();
+          if (
+            freshRoleStr === 'super_admin' ||
+            freshRoleStr === 'superadmin' ||
+            freshUser.isSuperAdmin
+          ) {
+            return next();
+          }
+          if (
+            freshRoleStr === 'admin' &&
+            !SUPER_ADMIN_ONLY_PERMS.includes(permissionKey)
+          ) {
+            return next();
+          }
+          const freshRole = await roleRepository.findById(freshUser.roleId || freshUser.role);
+          if (freshRole && Array.isArray(freshRole.permissions)) {
+            permissions = freshRole.permissions;
+          }
+        }
       }
 
-      next();
+      if (permissions.includes(permissionKey)) {
+        return next();
+      }
+
+      return next(
+        ApiError.forbidden(
+          `Access denied. You do not have permission to perform this action (${permissionKey}).`,
+          'PERMISSION_DENIED',
+          { requiredPermission: permissionKey }
+        )
+      );
     } catch (err) {
       next(err);
     }
@@ -54,7 +94,13 @@ export const requireSuperAdmin = () => {
     if (!user) {
       return next(ApiError.unauthorized('Authentication required'));
     }
-    if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.isSuperAdmin) {
+    const roleStr = String(user.role || '').toLowerCase();
+    if (
+      roleStr === 'super_admin' ||
+      roleStr === 'superadmin' ||
+      user.isSuperAdmin === true ||
+      String(user.roleName || '').toLowerCase().includes('super')
+    ) {
       return next();
     }
     return next(ApiError.forbidden('Super Admin privilege required', 'SUPER_ADMIN_REQUIRED'));

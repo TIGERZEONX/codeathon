@@ -27,6 +27,26 @@ export const seedSuperAdmin = async () => {
     });
 
     logger.info(`Super Admin seeded successfully: ${env.SUPER_ADMIN_EMAIL}`);
+
+    // Also seed standard Administrator account if not present
+    const existingAdmin = await userRepository.findByEmail('admin@codeathon.dev');
+    if (!existingAdmin) {
+      const hashedAdminPassword = await hashPassword('AdminPassword@123');
+      await userRepository.create({
+        id: 'admin_user',
+        name: 'Administrator',
+        email: 'admin@codeathon.dev',
+        password: hashedAdminPassword,
+        role: SYSTEM_ROLES.ADMIN,
+        roleId: SYSTEM_ROLES.ADMIN,
+        roleName: 'Admin',
+        contestScope: [],
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      });
+      logger.info('Standard Administrator seeded successfully: admin@codeathon.dev');
+    }
+
     return superAdmin;
   } catch (err) {
     logger.error('Failed to seed Super Admin', { error: err.message });
