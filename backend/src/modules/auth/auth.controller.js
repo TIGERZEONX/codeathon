@@ -1,6 +1,7 @@
 import { authService } from './auth.service.js';
 import { getCookieOptions } from '../../utils/jwt.js';
 import { successResponse } from '../../utils/response.js';
+import { participantRepository } from '../participants/participants.repository.js';
 
 export class AuthController {
   async login(req, res) {
@@ -40,7 +41,24 @@ export class AuthController {
   }
 
   async getMe(req, res) {
-    return successResponse(res, { user: req.user });
+    let user = { ...req.user };
+    try {
+      if (req.user?.userId || req.user?.email) {
+        const participant =
+          (await participantRepository.findById(req.user?.userId)) ||
+          (await participantRepository.findByEmail(req.user?.email));
+        if (participant) {
+          user = {
+            ...user,
+            department: participant.department || 'Computer Science & Engineering',
+            yearOrSemester: participant.yearOrSemester || '3rd Year / Semester 6',
+            teamId: participant.teamId,
+            rollNumber: participant.rollNumber || user.rollNumber,
+          };
+        }
+      }
+    } catch (e) {}
+    return successResponse(res, { user });
   }
 
   async forgotPassword(req, res) {

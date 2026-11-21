@@ -47,6 +47,17 @@ export class AttemptsService {
           }
         }
 
+        // Compute live/scheduled/ended dynamically
+        const now = Date.now();
+        const start = new Date(contest.startTime).getTime();
+        const end = new Date(contest.endTime).getTime();
+        let computedStatus = contest.status;
+        if (contest.status !== CONTEST_STATUS.DRAFT && contest.status !== CONTEST_STATUS.ARCHIVED) {
+          if (now < start) computedStatus = CONTEST_STATUS.SCHEDULED;
+          else if (now >= start && now <= end) computedStatus = CONTEST_STATUS.LIVE;
+          else if (now > end) computedStatus = CONTEST_STATUS.ENDED;
+        }
+
         assignedContests.push({
           id: contest.id,
           title: contest.title,
@@ -57,6 +68,7 @@ export class AttemptsService {
           durationMinutes: contest.durationMinutes,
           gracePeriodMinutes: contest.gracePeriodMinutes || 0,
           status: contest.status,
+          computedStatus,
           proctorConfig: contest.proctorConfig || {},
           leaderboardConfig: contest.leaderboardConfig || {},
           attempt: attempt
