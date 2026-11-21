@@ -29,6 +29,13 @@ export default function LoginPage() {
     setServerError('');
     try {
       const result = await authApi.login(data.identifier, data.password);
+      if (result.user.role !== 'student') {
+        // Staff/Admin/Proctor user logged in on student portal
+        // Auto-redirect to the Admin Console on port 3001
+        const adminUrl = `http://localhost:3001/login?autoToken=${encodeURIComponent(result.accessToken)}&userData=${encodeURIComponent(JSON.stringify(result.user))}`;
+        window.location.href = adminUrl;
+        return;
+      }
       setAuth(result.user, result.accessToken);
       router.replace('/dashboard');
     } catch (err: any) {
@@ -135,9 +142,17 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#3760F8]" />
-            <span>Encrypted Session &bull; Fast Auto-Reconnect</span>
+          <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col items-center gap-2 text-xs text-slate-500">
+            <a
+              href="http://localhost:3001/login"
+              className="text-[#3760F8] hover:underline font-medium flex items-center gap-1.5"
+            >
+              <span>Admin, Proctor or Evaluator? Open Admin Console &rarr;</span>
+            </a>
+            <div className="flex items-center gap-1.5 text-slate-400 text-[11px] mt-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#3760F8]" />
+              <span>Encrypted Session &bull; Fast Auto-Reconnect</span>
+            </div>
           </div>
         </div>
       </div>

@@ -25,13 +25,21 @@ export class AuthService {
 
     // Resolve user's permissions
     let permissions = [];
-    let roleName = user.role;
+    let roleName = user.roleName || user.role;
     if (user.role === SYSTEM_ROLES.SUPER_ADMIN) {
       const superRole = await roleRepository.findById(SYSTEM_ROLES.SUPER_ADMIN);
       permissions = superRole?.permissions || [];
       roleName = 'Super Admin';
-    } else if (user.roleId || user.role) {
-      const role = await roleRepository.findById(user.roleId || user.role);
+    } else {
+      const roleKey = user.roleId || user.role;
+      let role = await roleRepository.findById(roleKey);
+      if (!role && roleKey) {
+        const normalized = String(roleKey).toLowerCase().replace(/\s+/g, '_');
+        role = await roleRepository.findById(normalized);
+      }
+      if (!role && user.roleName) {
+        role = await roleRepository.findOne({ name: { $regex: new RegExp(`^${user.roleName}$`, 'i') } });
+      }
       if (role) {
         permissions = role.permissions || [];
         roleName = role.name;
@@ -98,13 +106,21 @@ export class AuthService {
 
     // Resolve current permissions
     let permissions = [];
-    let roleName = user.role;
+    let roleName = user.roleName || user.role;
     if (user.role === SYSTEM_ROLES.SUPER_ADMIN) {
       const superRole = await roleRepository.findById(SYSTEM_ROLES.SUPER_ADMIN);
       permissions = superRole?.permissions || [];
       roleName = 'Super Admin';
     } else {
-      const role = await roleRepository.findById(user.roleId || user.role);
+      const roleKey = user.roleId || user.role;
+      let role = await roleRepository.findById(roleKey);
+      if (!role && roleKey) {
+        const normalized = String(roleKey).toLowerCase().replace(/\s+/g, '_');
+        role = await roleRepository.findById(normalized);
+      }
+      if (!role && user.roleName) {
+        role = await roleRepository.findOne({ name: { $regex: new RegExp(`^${user.roleName}$`, 'i') } });
+      }
       if (role) {
         permissions = role.permissions || [];
         roleName = role.name;

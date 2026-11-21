@@ -36,6 +36,10 @@ export class UsersService {
     const roleKey = data.roleId || data.role || SYSTEM_ROLES.ADMIN;
     let role = await roleRepository.findById(roleKey);
     if (!role) {
+      const normalizedKey = String(roleKey).toLowerCase().replace(/\s+/g, '_');
+      role = await roleRepository.findById(normalizedKey);
+    }
+    if (!role) {
       role = await roleRepository.findOne({ name: { $regex: new RegExp(`^${roleKey}$`, 'i') } });
     }
     if (!role) {

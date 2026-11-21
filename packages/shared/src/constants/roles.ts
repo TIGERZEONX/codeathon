@@ -31,6 +31,7 @@ export const PREDEFINED_SUB_ROLES = [
     name: 'Question Setter',
     description: 'Creates and curates questions, test cases, and starter code',
     permissions: [
+      'contests.view',
       'sections_questions.view',
       'sections_questions.create',
       'sections_questions.update',

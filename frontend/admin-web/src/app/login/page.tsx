@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
 import { adminAuthApi } from '@/lib/api';
@@ -14,11 +14,34 @@ export default function AdminLoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [customError, setCustomError] = useState<string | null>(null);
+
+  // Check for auto-redirect from Student Portal
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const autoToken = params.get('autoToken');
+      const userData = params.get('userData');
+      if (autoToken && userData) {
+        try {
+          const user = JSON.parse(decodeURIComponent(userData));
+          setAuth(user, autoToken);
+          router.replace('/dashboard');
+        } catch (e) {
+          // ignore parsing error
+        }
+      }
+    }
+  }, [setAuth, router]);
 
   const loginMutation = useMutation({
     mutationFn: () => adminAuthApi.login(identifier, password),
     onSuccess: (data) => {
       const { user, accessToken } = data as { user: Parameters<typeof setAuth>[0]; accessToken: string };
+      if (user.role === 'student') {
+        setCustomError('Access denied. Student accounts must sign in via the Student Portal (http://localhost:3000).');
+        return;
+      }
       setAuth(user, accessToken);
       router.push('/dashboard');
     },
@@ -26,14 +49,16 @@ export default function AdminLoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setCustomError(null);
     if (!identifier || !password) return;
     loginMutation.mutate();
   };
 
   const errorMsg =
-    loginMutation.isError
+    customError ||
+    (loginMutation.isError
       ? (loginMutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Login failed'
-      : null;
+      : null);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
