@@ -8,7 +8,7 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 20000,
+  timeout: 10000,
 });
 
 apiClient.interceptors.request.use((config) => {
@@ -37,21 +37,33 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Do NOT intercept if the request was to auth endpoints (login, refresh) or if already retried
+    if (!originalRequest || originalRequest._retry || originalRequest.url?.includes('/auth/')) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers['Authorization'] = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        });
+        })
+          .then((token) => {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        const refreshRes = await apiClient.post('/auth/refresh');
+        // Use raw axios to prevent infinite recursive interceptor deadlocks
+        const refreshRes = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true, timeout: 5000 }
+        );
         const newToken = refreshRes.data?.data?.accessToken;
         if (newToken && typeof window !== 'undefined') {
           sessionStorage.setItem('admin_access_token', newToken);
@@ -65,7 +77,10 @@ apiClient.interceptors.response.use(
         processQueue(err, null);
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('admin_access_token');
-          window.location.href = '/login';
+          sessionStorage.removeItem('admin_user');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(err);
       } finally {

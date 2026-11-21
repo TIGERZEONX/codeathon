@@ -4,14 +4,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1
 
 export const apiClient = axios.create({
   baseURL: API_URL,
-  withCredentials: true, // Send & receive httpOnly cookies
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 15000,
+  timeout: 10000,
 });
 
-// Request interceptor: attach access token from memory if available
 apiClient.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = sessionStorage.getItem('access_token');
@@ -22,7 +21,6 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor: auto-refresh on 401
 let isRefreshing = false;
 let pendingQueue: { resolve: (val: any) => void; reject: (err: any) => void }[] = [];
 
@@ -42,22 +40,33 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Do NOT intercept if the request was to auth endpoints (login, refresh) or if already retried
+    if (!originalRequest || originalRequest._retry || originalRequest.url?.includes('/auth/')) {
+      return Promise.reject(error);
+    }
+
+    if (error.response?.status === 401) {
       if (isRefreshing) {
-        // Queue up requests until refresh completes
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers['Authorization'] = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        });
+        })
+          .then((token) => {
+            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        const refreshRes = await apiClient.post('/auth/refresh');
+        // Use raw axios to avoid interceptor recursion deadlocks
+        const refreshRes = await axios.post(
+          `${API_URL}/auth/refresh`,
+          {},
+          { withCredentials: true, timeout: 5000 }
+        );
         const newToken = refreshRes.data?.data?.accessToken;
         if (newToken && typeof window !== 'undefined') {
           sessionStorage.setItem('access_token', newToken);
@@ -71,8 +80,10 @@ apiClient.interceptors.response.use(
         processQueue(refreshErr, null);
         if (typeof window !== 'undefined') {
           sessionStorage.removeItem('access_token');
-          // Redirect to login
-          window.location.href = '/login';
+          sessionStorage.removeItem('user');
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(refreshErr);
       } finally {
