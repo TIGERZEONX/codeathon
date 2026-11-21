@@ -9,23 +9,32 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAdminAuthStore } from '@/store/adminAuthStore';
-import { Plus, ShieldCheck, Lock, Edit2, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Plus, ShieldCheck, Lock, Edit2, Trash2, AlertCircle } from 'lucide-react';
 
 interface Role {
   _id: string;
+  id?: string;
   name: string;
+  description?: string;
   permissions: string[];
   isSystem?: boolean;
 }
 
-interface PermGroup {
-  group: string;
-  permissions: string[];
+interface PermItem {
+  key: string;
+  label: string;
+  superAdminOnly?: boolean;
+}
+
+interface PermModule {
+  module: string;
+  label: string;
+  permissions: PermItem[];
 }
 
 export default function RolesPage() {
   const qc = useQueryClient();
-  const { isSuperAdmin } = useAdminAuthStore();
+  const { isSuperAdmin, user } = useAdminAuthStore();
 
   const [showCreate, setShowCreate] = useState(false);
   const [editRole, setEditRole] = useState<Role | null>(null);
@@ -33,17 +42,21 @@ export default function RolesPage() {
   const [form, setForm] = useState({ name: '', permissions: [] as string[] });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const { data: rolesData, isLoading } = useQuery({
+  const { data: rolesData, isLoading: rolesLoading } = useQuery({
     queryKey: ['roles'],
     queryFn: rolesApi.list,
   });
-  const roles: Role[] = (rolesData as Role[]) || [];
+  const roles: Role[] = Array.isArray(rolesData) ? rolesData : (rolesData as any)?.data || [];
 
-  const { data: permsData } = useQuery({
+  const { data: permsData, isLoading: permsLoading } = useQuery({
     queryKey: ['permissions'],
     queryFn: rolesApi.getPermissions,
   });
-  const permGroups: PermGroup[] = (permsData as PermGroup[]) || [];
+
+  // Extract modules array safely from backend response
+  const rawPerms: any = permsData || {};
+  const permModules: PermModule[] =
+    rawPerms.modules || rawPerms.data?.modules || (Array.isArray(rawPerms) ? rawPerms : []);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -90,12 +103,12 @@ export default function RolesPage() {
     },
   });
 
-  const togglePermission = (perm: string) => {
+  const togglePermission = (key: string) => {
     setForm((f) => ({
       ...f,
-      permissions: f.permissions.includes(perm)
-        ? f.permissions.filter((p) => p !== perm)
-        : [...f.permissions, perm],
+      permissions: f.permissions.includes(key)
+        ? f.permissions.filter((p) => p !== key)
+        : [...f.permissions, key],
     }));
   };
 
@@ -108,18 +121,8 @@ export default function RolesPage() {
   const openEdit = (role: Role) => {
     setErrorMsg(null);
     setEditRole(role);
-    setForm({ name: role.name, permissions: [...role.permissions] });
+    setForm({ name: role.name, permissions: Array.isArray(role.permissions) ? [...role.permissions] : [] });
   };
-
-  if (!isSuperAdmin()) {
-    return (
-      <div className="p-8 text-center text-slate-500 font-sans max-w-sm mx-auto mt-24 bg-white border border-slate-200 rounded-3xl p-8 shadow-xs">
-        <Lock className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-        <p className="font-bold text-slate-900 text-sm">Access Restricted</p>
-        <p className="text-xs text-slate-500 mt-1">Super Administrator privileges are required to configure RBAC roles.</p>
-      </div>
-    );
-  }
 
   const columns = [
     {
@@ -130,7 +133,10 @@ export default function RolesPage() {
           <div className="w-8 h-8 rounded-lg bg-[#3760F8]/10 text-[#3760F8] flex items-center justify-center shrink-0">
             <ShieldCheck className="w-4 h-4" />
           </div>
-          <span className="font-semibold text-slate-900 tracking-tight text-sm">{r.name}</span>
+          <div>
+            <span className="font-semibold text-slate-900 tracking-tight text-sm block">{r.name}</span>
+            {r.description && <span className="text-[11px] text-slate-500 line-clamp-1">{r.description}</span>}
+          </div>
         </div>
       ),
     },
@@ -148,7 +154,7 @@ export default function RolesPage() {
       header: 'Granted Permissions',
       render: (r: Role) => (
         <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-          {r.permissions.length} Scope Keys
+          {(r.permissions || []).length} Scope Keys
         </span>
       ),
     },
@@ -167,7 +173,7 @@ export default function RolesPage() {
               variant="ghost"
               size="sm"
               className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
-              onClick={() => setDeleteId(r._id)}
+              onClick={() => setDeleteId(r._id || r.id!)}
               leftIcon={<Trash2 className="w-3.5 h-3.5" />}
             >
               Delete
@@ -177,8 +183,10 @@ export default function RolesPage() {
     },
   ];
 
+  const isLoading = rolesLoading || permsLoading;
+
   return (
-    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto font-sans">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -197,7 +205,7 @@ export default function RolesPage() {
         columns={columns}
         data={roles}
         loading={isLoading}
-        rowKey={(r) => r._id}
+        rowKey={(r) => r._id || r.id || r.name}
         emptyMessage="No custom roles created yet."
       />
 
@@ -227,18 +235,20 @@ export default function RolesPage() {
               </span>
             </div>
 
-            <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto bg-slate-50/40">
-              {permGroups.map((group) => (
-                <div key={group.group}>
+            <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto bg-slate-50/40 divide-y divide-slate-200">
+              {permModules.map((group) => (
+                <div key={group.module}>
                   <div className="bg-slate-100/90 px-4 py-2 text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200">
-                    {group.group} Module
+                    {group.label || group.module}
                   </div>
                   <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {group.permissions.map((perm) => {
-                      const checked = form.permissions.includes(perm);
+                    {(group.permissions || []).map((perm: any) => {
+                      const key = typeof perm === 'string' ? perm : perm.key;
+                      const label = typeof perm === 'string' ? perm.replace(/[._]/g, ' ') : perm.label || perm.key;
+                      const checked = form.permissions.includes(key);
                       return (
                         <label
-                          key={perm}
+                          key={key}
                           className={`flex items-center gap-2.5 p-2 rounded-xl text-xs cursor-pointer transition-colors ${
                             checked ? 'bg-[#EEF2FF] text-[#3760F8] font-semibold' : 'hover:bg-white text-slate-700'
                           }`}
@@ -247,17 +257,17 @@ export default function RolesPage() {
                             type="checkbox"
                             className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded"
                             checked={checked}
-                            onChange={() => togglePermission(perm)}
+                            onChange={() => togglePermission(key)}
                           />
-                          <span className="truncate">{perm.replace(/[._]/g, ' ')}</span>
+                          <span className="truncate">{label}</span>
                         </label>
                       );
                     })}
                   </div>
                 </div>
               ))}
-              {permGroups.length === 0 && (
-                <div className="p-8 text-xs text-slate-400 text-center">No permission scope definitions found.</div>
+              {permModules.length === 0 && (
+                <div className="p-8 text-xs text-slate-400 text-center">Loading permission definitions...</div>
               )}
             </div>
           </div>
@@ -303,18 +313,20 @@ export default function RolesPage() {
               </span>
             </div>
 
-            <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto bg-slate-50/40">
-              {permGroups.map((group) => (
-                <div key={group.group}>
+            <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-72 overflow-y-auto bg-slate-50/40 divide-y divide-slate-200">
+              {permModules.map((group) => (
+                <div key={group.module}>
                   <div className="bg-slate-100/90 px-4 py-2 text-[11px] font-bold text-slate-700 uppercase tracking-wider border-b border-slate-200">
-                    {group.group} Module
+                    {group.label || group.module}
                   </div>
                   <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {group.permissions.map((perm) => {
-                      const checked = form.permissions.includes(perm);
+                    {(group.permissions || []).map((perm: any) => {
+                      const key = typeof perm === 'string' ? perm : perm.key;
+                      const label = typeof perm === 'string' ? perm.replace(/[._]/g, ' ') : perm.label || perm.key;
+                      const checked = form.permissions.includes(key);
                       return (
                         <label
-                          key={perm}
+                          key={key}
                           className={`flex items-center gap-2.5 p-2 rounded-xl text-xs cursor-pointer transition-colors ${
                             checked ? 'bg-[#EEF2FF] text-[#3760F8] font-semibold' : 'hover:bg-white text-slate-700'
                           }`}
@@ -323,9 +335,9 @@ export default function RolesPage() {
                             type="checkbox"
                             className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded"
                             checked={checked}
-                            onChange={() => togglePermission(perm)}
+                            onChange={() => togglePermission(key)}
                           />
-                          <span className="truncate">{perm.replace(/[._]/g, ' ')}</span>
+                          <span className="truncate">{label}</span>
                         </label>
                       );
                     })}
@@ -341,7 +353,7 @@ export default function RolesPage() {
             </Button>
             <Button
               size="sm"
-              onClick={() => editRole && updateMutation.mutate({ id: editRole._id })}
+              onClick={() => editRole && updateMutation.mutate({ id: editRole._id || editRole.id! })}
               loading={updateMutation.isPending}
               disabled={!form.name.trim()}
             >

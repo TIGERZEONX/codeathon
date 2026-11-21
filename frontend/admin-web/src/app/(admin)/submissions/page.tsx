@@ -34,7 +34,7 @@ export default function SubmissionsPage() {
     queryKey: ['submissions'],
     queryFn: () => submissionsApi.getLocked(),
   });
-  const submissions: Submission[] = (data as Submission[]) || [];
+  const submissions: Submission[] = Array.isArray(data) ? data : (data as any)?.data || [];
 
   const revokeMutation = useMutation({
     mutationFn: () =>
