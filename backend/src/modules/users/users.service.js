@@ -33,7 +33,14 @@ export class UsersService {
       throw ApiError.conflict('A user with this email address already exists');
     }
 
-    const role = await roleRepository.findById(data.role);
+    const roleKey = data.roleId || data.role || SYSTEM_ROLES.ADMIN;
+    let role = await roleRepository.findById(roleKey);
+    if (!role) {
+      role = await roleRepository.findOne({ name: { $regex: new RegExp(`^${roleKey}$`, 'i') } });
+    }
+    if (!role) {
+      role = await roleRepository.findById(SYSTEM_ROLES.ADMIN);
+    }
     if (!role) {
       throw ApiError.badRequest('Specified role does not exist');
     }

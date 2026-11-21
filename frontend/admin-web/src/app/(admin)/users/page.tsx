@@ -52,11 +52,13 @@ export default function UsersPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       setErrorMsg(null);
+      const targetRole = form.roleId || 'admin';
       return usersApi.create({
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password.trim(),
-        roleId: form.roleId || undefined,
+        role: targetRole,
+        roleId: targetRole,
       });
     },
     onSuccess: () => {
