@@ -38,8 +38,9 @@ export const createApp = () => {
   // Swagger docs
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-  // Mount API v1 routes
+  // Mount API routes (both /api/v1 and /api for compatibility)
   app.use('/api/v1', apiRoutes);
+  app.use('/api', apiRoutes);
 
   // 404 & Error handlers
   app.use(notFoundMiddleware);
