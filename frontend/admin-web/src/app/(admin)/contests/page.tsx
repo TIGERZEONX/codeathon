@@ -80,6 +80,24 @@ const getDefaultForm = () => {
   };
 };
 
+const safeToIso = (val: string | undefined, fallback: Date): string => {
+  if (!val || !val.trim()) return fallback.toISOString();
+  const d = new Date(val);
+  if (!isNaN(d.getTime())) return d.toISOString();
+
+  const parts = val.trim().split(/[-/T\s:]+/);
+  if (parts.length >= 3 && Number(parts[2]) >= 2000) {
+    const day = Number(parts[0]);
+    const month = Number(parts[1]) - 1;
+    const year = Number(parts[2]);
+    const hour = Number(parts[3]) || 0;
+    const min = Number(parts[4]) || 0;
+    const parsed = new Date(year, month, day, hour, min);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString();
+  }
+  return fallback.toISOString();
+};
+
 export default function ContestsPage() {
   const qc = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
@@ -107,8 +125,22 @@ export default function ContestsPage() {
   const createMutation = useMutation({
     mutationFn: async () => {
       setErrorMsg(null);
-      const startIso = form.startTime ? new Date(form.startTime).toISOString() : new Date().toISOString();
-      const endIso = form.endTime ? new Date(form.endTime).toISOString() : new Date(Date.now() + 86400000).toISOString();
+      if (!form.title.trim()) {
+        throw new Error('Contest title is required.');
+      }
+      if (form.title.trim().length < 3) {
+        throw new Error('Contest title must be at least 3 characters.');
+      }
+      if (Number(form.durationMinutes) < 5) {
+        throw new Error('Duration must be at least 5 minutes.');
+      }
+
+      const startIso = safeToIso(form.startTime, new Date());
+      const endIso = safeToIso(form.endTime, new Date(Date.now() + 86400000));
+
+      if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+        throw new Error('End window must be after the start window.');
+      }
 
       return contestsApi.create({
         title: form.title.trim(),
@@ -129,6 +161,7 @@ export default function ContestsPage() {
           blockPrintScreen: true,
           blockTextSelection: true,
           maxViolations: Number(form.maxViolations) || 5,
+          violationAction: 'warn',
         },
         leaderboardConfig: {
           enabled: form.leaderboardEnabled,
@@ -151,8 +184,11 @@ export default function ContestsPage() {
   const updateMutation = useMutation({
     mutationFn: async ({ id }: { id: string }) => {
       setErrorMsg(null);
-      const startIso = form.startTime ? new Date(form.startTime).toISOString() : undefined;
-      const endIso = form.endTime ? new Date(form.endTime).toISOString() : undefined;
+      if (form.title.trim() && form.title.trim().length < 3) {
+        throw new Error('Contest title must be at least 3 characters.');
+      }
+      const startIso = form.startTime ? safeToIso(form.startTime, new Date()) : undefined;
+      const endIso = form.endTime ? safeToIso(form.endTime, new Date(Date.now() + 86400000)) : undefined;
 
       return contestsApi.update(id, {
         title: form.title.trim(),
@@ -502,6 +538,20 @@ export default function ContestsPage() {
             </div>
           </div>
 
+          {errorMsg && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
               Cancel
@@ -510,7 +560,6 @@ export default function ContestsPage() {
               size="sm"
               onClick={() => createMutation.mutate()}
               loading={createMutation.isPending}
-              disabled={!form.title.trim()}
             >
               Create Contest
             </Button>
@@ -574,6 +623,13 @@ export default function ContestsPage() {
               </select>
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setEditContest(null)}>
