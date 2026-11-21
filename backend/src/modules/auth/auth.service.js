@@ -1,0 +1,182 @@
+import { userRepository } from '../users/users.repository.js';
+import { roleRepository } from '../roles/roles.repository.js';
+import { refreshTokenRepository } from './refreshToken.repository.js';
+import { comparePassword, hashPassword } from '../../utils/password.js';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { SYSTEM_ROLES } from '@codeathon/shared';
+import { v4 as uuidv4 } from 'uuid';
+
+export class AuthService {
+  async login(identifier, password) {
+    const user = await userRepository.findByIdentifier(identifier);
+    if (!user) {
+      throw ApiError.unauthorized('Invalid email/roll number or password', 'INVALID_CREDENTIALS');
+    }
+
+    if (!user.isActive) {
+      throw ApiError.forbidden('Your account has been deactivated. Please contact an administrator.', 'ACCOUNT_DEACTIVATED');
+    }
+
+    const isMatch = await comparePassword(password, user.password);
+    if (!isMatch) {
+      throw ApiError.unauthorized('Invalid email/roll number or password', 'INVALID_CREDENTIALS');
+    }
+
+    // Resolve user's permissions
+    let permissions = [];
+    let roleName = user.role;
+    if (user.role === SYSTEM_ROLES.SUPER_ADMIN) {
+      const superRole = await roleRepository.findById(SYSTEM_ROLES.SUPER_ADMIN);
+      permissions = superRole?.permissions || [];
+      roleName = 'Super Admin';
+    } else if (user.roleId || user.role) {
+      const role = await roleRepository.findById(user.roleId || user.role);
+      if (role) {
+        permissions = role.permissions || [];
+        roleName = role.name;
+      }
+    }
+
+    const tokenPayload = {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      rollNumber: user.rollNumber,
+      role: user.role,
+      roleName,
+      isSuperAdmin: user.role === SYSTEM_ROLES.SUPER_ADMIN,
+      permissions,
+      contestScope: user.contestScope || [],
+    };
+
+    const accessToken = signAccessToken(tokenPayload);
+    const refreshToken = signRefreshToken({ userId: user.id, tokenId: uuidv4() });
+
+    // Store refresh token
+    await refreshTokenRepository.create({
+      userId: user.id,
+      token: refreshToken,
+      isRevoked: false,
+    });
+
+    return {
+      user: tokenPayload,
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  async refreshToken(oldRefreshToken) {
+    if (!oldRefreshToken) {
+      throw ApiError.unauthorized('Refresh token required', 'REFRESH_TOKEN_REQUIRED');
+    }
+
+    const decoded = verifyRefreshToken(oldRefreshToken);
+    if (!decoded) {
+      throw ApiError.unauthorized('Invalid or expired refresh token', 'REFRESH_TOKEN_INVALID');
+    }
+
+    const tokenRecord = await refreshTokenRepository.findByToken(oldRefreshToken);
+    if (!tokenRecord || tokenRecord.isRevoked) {
+      // Possible reuse attack: revoke all tokens for this user
+      await refreshTokenRepository.revokeAllForUser(decoded.userId);
+      throw ApiError.unauthorized('Compromised refresh token reused. All sessions revoked.', 'TOKEN_COMPROMISED');
+    }
+
+    // Revoke old refresh token (rotation)
+    await refreshTokenRepository.update(tokenRecord.id, { isRevoked: true });
+
+    const user = await userRepository.findById(decoded.userId);
+    if (!user || !user.isActive) {
+      throw ApiError.unauthorized('User not found or deactivated');
+    }
+
+    // Resolve current permissions
+    let permissions = [];
+    let roleName = user.role;
+    if (user.role === SYSTEM_ROLES.SUPER_ADMIN) {
+      const superRole = await roleRepository.findById(SYSTEM_ROLES.SUPER_ADMIN);
+      permissions = superRole?.permissions || [];
+      roleName = 'Super Admin';
+    } else {
+      const role = await roleRepository.findById(user.roleId || user.role);
+      if (role) {
+        permissions = role.permissions || [];
+        roleName = role.name;
+      }
+    }
+
+    const tokenPayload = {
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      rollNumber: user.rollNumber,
+      role: user.role,
+      roleName,
+      isSuperAdmin: user.role === SYSTEM_ROLES.SUPER_ADMIN,
+      permissions,
+      contestScope: user.contestScope || [],
+    };
+
+    const newAccessToken = signAccessToken(tokenPayload);
+    const newRefreshToken = signRefreshToken({ userId: user.id, tokenId: uuidv4() });
+
+    await refreshTokenRepository.create({
+      userId: user.id,
+      token: newRefreshToken,
+      isRevoked: false,
+    });
+
+    return {
+      user: tokenPayload,
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  async logout(refreshToken, userId) {
+    if (refreshToken) {
+      await refreshTokenRepository.revokeToken(refreshToken);
+    } else if (userId) {
+      await refreshTokenRepository.revokeAllForUser(userId);
+    }
+  }
+
+  async forgotPassword(email) {
+    const user = await userRepository.findByEmail(email);
+    if (!user) {
+      // Return success to avoid email enumeration
+      return { message: 'If an account exists with this email, a reset token has been generated.' };
+    }
+    const resetToken = uuidv4();
+    await userRepository.update(user.id, {
+      resetToken,
+      resetTokenExpires: Date.now() + 60 * 60 * 1000, // 1 hour
+    });
+    return {
+      message: 'Password reset link sent to your registered email.',
+      resetToken, // included for dev convenience
+    };
+  }
+
+  async resetPassword(token, newPassword) {
+    const all = await userRepository.find({});
+    const user = all.find((u) => u.resetToken === token && u.resetTokenExpires > Date.now());
+    if (!user) {
+      throw ApiError.badRequest('Invalid or expired reset token', 'INVALID_RESET_TOKEN');
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    await userRepository.update(user.id, {
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpires: null,
+    });
+    // Invalidate existing sessions
+    await refreshTokenRepository.revokeAllForUser(user.id);
+    return { message: 'Password has been successfully reset. Please log in with your new password.' };
+  }
+}
+
+export const authService = new AuthService();
