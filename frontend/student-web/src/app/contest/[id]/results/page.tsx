@@ -5,6 +5,7 @@ import { contestApi, leaderboardApi } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles } from 'lucide-react';
 
 interface LeaderboardEntry {
   rank: number;
@@ -39,7 +40,7 @@ export default function ResultsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Spinner size="lg" />
       </div>
     );
@@ -48,7 +49,7 @@ export default function ResultsPage() {
   const attempt = attemptData as AttemptResult | null;
   if (!attempt) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-slate-500 bg-slate-50">
         Results not found.
       </div>
     );
@@ -65,71 +66,99 @@ export default function ResultsPage() {
   const leaderboard: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || [];
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b px-6 py-4 flex items-center gap-4">
-        <h1 className="text-xl font-bold text-gray-900">Your Results</h1>
-        <Badge color={attempt.status === 'graded' ? 'green' : 'yellow'}>{attempt.status}</Badge>
+    <div className="min-h-screen bg-slate-50 font-sans">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-2xs">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#3760F8] hover:text-[#254EDB] px-3 py-1.5 rounded-lg bg-[#EEF2FF] hover:bg-[#E0E7FF] transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Dashboard</span>
+          </button>
+          <h1 className="text-base font-bold text-slate-900 tracking-tight">Assessment Evaluation</h1>
+        </div>
+        <Badge color={attempt.status === 'graded' ? 'green' : 'primary'} dot>
+          {attempt.status === 'graded' ? 'Graded & Verified' : 'Submitted'}
+        </Badge>
       </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
-        {/* Score Card */}
-        <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
-          <div className="text-6xl font-bold text-blue-600 mb-2">
-            {attempt.totalScore ?? '—'}
+      <main className="max-w-3xl mx-auto px-4 py-8 sm:py-10 space-y-6">
+        {/* Score Hero Card */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-8 text-center shadow-xs relative overflow-hidden">
+          <div className="inline-flex items-center gap-1.5 bg-[#EEF2FF] text-[#3760F8] px-3 py-1 rounded-full text-xs font-semibold mb-4">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Submission Recorded</span>
           </div>
-          <div className="text-gray-500 mb-6">Total Score</div>
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div className="bg-blue-50 rounded-lg p-3">
-              <div className="font-semibold text-blue-700 text-xl">{attempt.mcqScore ?? '—'}</div>
-              <div className="text-blue-600 text-xs mt-1">MCQ Score</div>
+
+          <div className="text-6xl sm:text-7xl font-extrabold text-[#3760F8] tracking-tight mb-1">
+            {attempt.totalScore ?? '0'}
+          </div>
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
+            Total Points Earned
+          </p>
+
+          <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Points</span>
+              <div className="text-xl font-bold text-slate-900 mt-1">{attempt.mcqScore ?? 0}</div>
             </div>
-            <div className="bg-purple-50 rounded-lg p-3">
-              <div className="font-semibold text-purple-700 text-xl">{attempt.codingScore ?? '—'}</div>
-              <div className="text-purple-600 text-xs mt-1">Coding Score</div>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Points</span>
+              <div className="text-xl font-bold text-slate-900 mt-1">{attempt.codingScore ?? 0}</div>
             </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <div className="font-semibold text-gray-700 text-xl">
-                {timeTaken != null ? `${timeTaken}m` : '—'}
-              </div>
-              <div className="text-gray-500 text-xs mt-1">Time Taken</div>
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>
+              <div className="text-xl font-bold text-slate-900 mt-1">{timeTaken != null ? `${timeTaken}m` : '—'}</div>
             </div>
           </div>
         </div>
 
         {/* Leaderboard */}
         {leaderboard.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Leaderboard</h2>
+          <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-5 h-5 text-[#3760F8]" />
+                <h2 className="text-base font-bold text-slate-900 tracking-tight">Contest Leaderboard</h2>
+              </div>
+              <span className="text-xs text-slate-400">Top Performers</span>
+            </div>
+
             <div className="space-y-2">
               {leaderboard.slice(0, 10).map((entry, i) => (
                 <div
                   key={i}
-                  className={`flex items-center gap-3 p-3 rounded-lg ${
+                  className={`flex items-center gap-3.5 p-3 rounded-2xl transition-colors ${
                     entry.isCurrentUser
-                      ? 'bg-blue-50 border border-blue-200'
-                      : 'bg-gray-50'
+                      ? 'bg-[#EEF2FF] border border-[#C7D2FE]'
+                      : 'bg-slate-50 border border-slate-100 hover:bg-slate-100/60'
                   }`}
                 >
                   <span
-                    className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-bold ${
-                      entry.rank <= 3
-                        ? 'bg-yellow-400 text-white'
-                        : 'bg-gray-200 text-gray-700'
+                    className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold ${
+                      entry.rank === 1
+                        ? 'bg-[#D3FE4F] text-[#0B0F19] shadow-xs'
+                        : entry.rank <= 3
+                        ? 'bg-[#3760F8] text-white shadow-xs'
+                        : 'bg-white border border-slate-200 text-slate-700'
                     }`}
                   >
                     {entry.rank}
                   </span>
-                  <span className="flex-1 text-sm font-medium text-gray-800">{entry.displayName}</span>
-                  <span className="text-sm font-bold text-blue-600">{entry.totalScore}</span>
+                  <span className="flex-1 text-sm font-semibold text-slate-800 tracking-tight">
+                    {entry.displayName} {entry.isCurrentUser && <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>}
+                  </span>
+                  <span className="text-sm font-extrabold text-[#3760F8] font-mono">{entry.totalScore} pts</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex justify-center">
+        <div className="flex justify-center pt-2">
           <Button variant="outline" onClick={() => router.push('/dashboard')}>
-            ← Back to Dashboard
+            Back to Dashboard
           </Button>
         </div>
       </main>

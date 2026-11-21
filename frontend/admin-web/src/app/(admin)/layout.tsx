@@ -6,17 +6,30 @@ import { useMutation } from '@tanstack/react-query';
 import { useAdminAuthStore } from '@/store/adminAuthStore';
 import { adminAuthApi } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
+import {
+  LayoutDashboard,
+  Trophy,
+  Users,
+  Network,
+  ClipboardCheck,
+  SendHorizontal,
+  UserCog,
+  ShieldCheck,
+  ScrollText,
+  LogOut,
+  Code2,
+} from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: '📊' },
-  { href: '/contests', label: 'Contests', icon: '🏆' },
-  { href: '/participants', label: 'Participants', icon: '👥' },
-  { href: '/teams', label: 'Teams', icon: '🤝' },
-  { href: '/rubrics', label: 'Rubrics', icon: '📋' },
-  { href: '/submissions', label: 'Submissions', icon: '📤' },
-  { href: '/users', label: 'Users', icon: '👤', superAdminOnly: true },
-  { href: '/roles', label: 'Roles', icon: '🔐', superAdminOnly: true },
-  { href: '/audit-logs', label: 'Audit Logs', icon: '📝' },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/contests', label: 'Contests', icon: Trophy },
+  { href: '/participants', label: 'Participants', icon: Users },
+  { href: '/teams', label: 'Teams', icon: Network },
+  { href: '/rubrics', label: 'Rubrics', icon: ClipboardCheck },
+  { href: '/submissions', label: 'Submissions', icon: SendHorizontal },
+  { href: '/users', label: 'Users', icon: UserCog, superAdminOnly: true },
+  { href: '/roles', label: 'Roles', icon: ShieldCheck, superAdminOnly: true },
+  { href: '/audit-logs', label: 'Audit Logs', icon: ScrollText },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -40,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <Spinner size="lg" />
       </div>
     );
@@ -51,63 +64,80 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const superAdmin = isSuperAdmin();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
       {/* Sidebar */}
-      <aside className="w-60 bg-white border-r flex flex-col flex-shrink-0">
-        {/* Logo */}
-        <div className="px-5 py-4 border-b">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">C</span>
+      <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 shadow-xs">
+        {/* Brand Header */}
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#3760F8] rounded-xl flex items-center justify-center shadow-[0_2px_10px_rgba(55,96,248,0.35)] relative overflow-hidden group">
+              <Code2 className="w-5 h-5 text-white" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#D3FE4F] rounded-full border-2 border-[#3760F8]" />
             </div>
-            <span className="font-bold text-gray-900">Codeathon</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-900 tracking-tight text-base">Codeathon</span>
+                <span className="w-2 h-2 rounded-full bg-[#D3FE4F]" />
+              </div>
+              <p className="text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                Admin Console
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5 ml-10">Admin Panel</p>
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-0.5">
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {NAV_ITEMS.filter((item) => !item.superAdminOnly || superAdmin).map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+            const Icon = item.icon;
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href + '/'));
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`group flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-[#EEF2FF] text-[#3760F8] font-semibold shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
-                <span>{item.icon}</span>
-                {item.label}
+                <Icon
+                  className={`w-4 h-4 transition-colors ${
+                    isActive ? 'text-[#3760F8]' : 'text-slate-600 group-hover:text-slate-600'
+                  }`}
+                />
+                <span className="tracking-tight">{item.label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#3760F8]" />
+                )}
               </Link>
             );
           })}
         </nav>
 
-        {/* User info */}
-        <div className="border-t p-3">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
+        {/* User Card */}
+        <div className="border-t border-slate-100 p-3 bg-slate-50/50">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white border border-slate-200/60 shadow-2xs">
+            <div className="w-8 h-8 rounded-lg bg-[#3760F8] flex items-center justify-center text-white font-semibold text-xs shadow-xs">
               {user?.name?.[0]?.toUpperCase() || 'A'}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{user?.name || 'Admin'}</p>
-              <p className="text-xs text-gray-500 truncate">{user?.email || ''}</p>
+              <p className="text-xs font-semibold text-slate-900 truncate tracking-tight">{user?.name || 'Administrator'}</p>
+              <p className="text-[11px] text-slate-600 truncate">{user?.email || 'admin@codeathon.dev'}</p>
             </div>
           </div>
           <button
             onClick={() => logoutMutation.mutate()}
-            className="w-full mt-1 text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-500 hover:text-rose-600 hover:bg-rose-50/80 rounded-lg transition-colors"
           >
-            Sign out
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign out</span>
           </button>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-y-auto">
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-y-auto bg-slate-50">
         {children}
       </main>
     </div>

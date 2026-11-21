@@ -9,6 +9,19 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
+import {
+  Plus,
+  Search,
+  Edit2,
+  Copy,
+  Clock,
+  Trash2,
+  Users,
+  Trophy,
+  FileSpreadsheet,
+  ShieldAlert,
+  ArrowRight,
+} from 'lucide-react';
 
 interface Contest {
   _id: string;
@@ -23,8 +36,6 @@ interface Contest {
 }
 
 interface Rubric { _id: string; name: string }
-
-type ContestStatus = 'draft' | 'live' | 'completed' | 'cancelled';
 
 const statusColor: Record<string, 'gray' | 'green' | 'blue' | 'red'> = {
   draft: 'gray',
@@ -135,111 +146,181 @@ export default function ContestsPage() {
   };
 
   const columns = [
-    { key: 'title', header: 'Title', render: (c: Contest) => (
-      <Link href={`/contests/${c._id}`} className="text-blue-600 hover:underline font-medium">{c.title}</Link>
-    )},
-    { key: 'status', header: 'Status', render: (c: Contest) => (
-      <Badge color={statusColor[c.status] || 'gray'}>{c.status}</Badge>
-    )},
-    { key: 'startTime', header: 'Start', render: (c: Contest) => new Date(c.startTime).toLocaleString() },
-    { key: 'durationMinutes', header: 'Duration', render: (c: Contest) => `${c.durationMinutes}m` },
-    { key: 'totalMarks', header: 'Marks' },
-    { key: 'actions', header: 'Actions', render: (c: Contest) => (
-      <div className="flex gap-1 flex-wrap">
-        <button onClick={() => openEdit(c)} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">Edit</button>
-        <button onClick={() => duplicateMutation.mutate(c._id)} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">Duplicate</button>
-        <button onClick={() => setTimingModal({ id: c._id, title: c.title })} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">+Time</button>
-        <Link href={`/attendance/${c._id}`} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">Attendance</Link>
-        <Link href={`/leaderboard/${c._id}`} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">LB</Link>
-        <Link href={`/reports/${c._id}`} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">Report</Link>
-        <Link href={`/proctoring/${c._id}`} className="text-xs px-2 py-1 border rounded hover:bg-gray-50">Proctor</Link>
-        <button onClick={() => setDeleteId(c._id)} className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50">Delete</button>
-      </div>
-    )},
+    {
+      key: 'title',
+      header: 'Contest Title',
+      render: (c: Contest) => (
+        <div>
+          <Link href={`/contests/${c._id}`} className="font-semibold text-slate-900 hover:text-[#3760F8] transition-colors block tracking-tight">
+            {c.title}
+          </Link>
+          <span className="text-[11px] text-slate-400 font-mono">ID: {c._id.slice(-6)}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (c: Contest) => (
+        <Badge color={statusColor[c.status] || 'gray'} dot>{c.status}</Badge>
+      ),
+    },
+    {
+      key: 'startTime',
+      header: 'Start Date & Time',
+      render: (c: Contest) => (
+        <span className="text-xs text-slate-600 font-medium">
+          {new Date(c.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+        </span>
+      ),
+    },
+    {
+      key: 'durationMinutes',
+      header: 'Duration',
+      render: (c: Contest) => (
+        <span className="text-xs font-mono font-medium text-slate-700">{c.durationMinutes}m</span>
+      ),
+    },
+    {
+      key: 'totalMarks',
+      header: 'Max Marks',
+      render: (c: Contest) => (
+        <span className="text-xs font-mono font-bold text-[#3760F8]">{c.totalMarks} pts</span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Operations',
+      render: (c: Contest) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Link
+            href={`/contests/${c._id}`}
+            className="text-[11px] font-semibold px-2.5 py-1 bg-slate-100 hover:bg-[#EEF2FF] hover:text-[#3760F8] text-slate-700 rounded-lg transition-colors"
+          >
+            Manage
+          </Link>
+          <button
+            onClick={() => openEdit(c)}
+            className="text-[11px] font-medium px-2 py-1 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => duplicateMutation.mutate(c._id)}
+            className="text-[11px] font-medium px-2 py-1 hover:bg-slate-100 text-slate-600 rounded-lg transition-colors"
+          >
+            Clone
+          </button>
+          <button
+            onClick={() => setTimingModal({ id: c._id, title: c.title })}
+            className="text-[11px] font-medium px-2 py-1 hover:bg-slate-100 text-[#3760F8] rounded-lg transition-colors"
+          >
+            +Time
+          </button>
+          <button
+            onClick={() => setDeleteId(c._id)}
+            className="text-[11px] font-medium px-2 py-1 hover:bg-rose-50 text-rose-600 rounded-lg transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      ),
+    },
   ];
 
   const ContestForm = ({ onSave, saving }: { onSave: () => void; saving: boolean }) => (
     <div className="space-y-4">
-      <Input label="Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required />
+      <Input label="Contest Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required />
       <div className="grid grid-cols-2 gap-3">
-        <Input label="Start Time" type="datetime-local" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
-        <Input label="End Time" type="datetime-local" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
+        <Input label="Start Window" type="datetime-local" value={form.startTime} onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))} />
+        <Input label="End Window" type="datetime-local" value={form.endTime} onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))} />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Input label="Duration (min)" type="number" value={String(form.durationMinutes)} onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))} />
-        <Input label="Total Marks" type="number" value={String(form.totalMarks)} onChange={(e) => setForm((f) => ({ ...f, totalMarks: Number(e.target.value) }))} />
+        <Input label="Duration (Minutes)" type="number" value={String(form.durationMinutes)} onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))} />
+        <Input label="Total Score Marks" type="number" value={String(form.totalMarks)} onChange={(e) => setForm((f) => ({ ...f, totalMarks: Number(e.target.value) }))} />
       </div>
       <div>
-        <label className="text-sm font-medium text-gray-700">Rubric</label>
-        <select className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" value={form.rubricId} onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}>
-          <option value="">No Rubric</option>
+        <label className="text-xs font-semibold text-slate-700">Evaluation Rubric</label>
+        <select className="mt-1 w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm bg-white focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none" value={form.rubricId} onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}>
+          <option value="">Default Standard Evaluation</option>
           {rubrics.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
         </select>
       </div>
-      <div className="border rounded-lg p-3 space-y-2">
+      <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
         <div className="flex items-center gap-2">
-          <input type="checkbox" id="proctorEnabled" checked={form.proctorEnabled} onChange={(e) => setForm((f) => ({ ...f, proctorEnabled: e.target.checked }))} />
-          <label htmlFor="proctorEnabled" className="text-sm font-medium text-gray-700">Enable Proctoring</label>
+          <input type="checkbox" id="proctorEnabled" className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded" checked={form.proctorEnabled} onChange={(e) => setForm((f) => ({ ...f, proctorEnabled: e.target.checked }))} />
+          <label htmlFor="proctorEnabled" className="text-xs font-bold text-slate-800">Enable Automated Security Proctoring</label>
         </div>
         {form.proctorEnabled && (
-          <div className="ml-4 space-y-1 text-sm">
+          <div className="ml-5 space-y-2 text-xs text-slate-700 pt-1">
             {(['blockTabSwitch', 'blockCopyPaste', 'enforceFullscreen', 'blockRightClick'] as const).map((key) => (
               <label key={key} className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form[key] as boolean} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))} />
-                {key.replace(/([A-Z])/g, ' $1').replace('block ', 'Block ').replace('enforce ', 'Enforce ')}
+                <input type="checkbox" className="accent-[#3760F8]" checked={form[key] as boolean} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))} />
+                <span>{key.replace(/([A-Z])/g, ' $1').replace('block ', 'Block ').replace('enforce ', 'Enforce ')}</span>
               </label>
             ))}
-            <Input label="Max Violations" type="number" value={String(form.maxViolations)} onChange={(e) => setForm((f) => ({ ...f, maxViolations: Number(e.target.value) }))} />
+            <div className="pt-1 max-w-xs">
+              <Input label="Violation Threshold Limit" type="number" value={String(form.maxViolations)} onChange={(e) => setForm((f) => ({ ...f, maxViolations: Number(e.target.value) }))} />
+            </div>
           </div>
         )}
       </div>
-      <div className="border rounded-lg p-3 space-y-2">
-        <p className="text-sm font-medium text-gray-700">Leaderboard</p>
-        <div className="flex gap-4 text-sm">
+      <div className="border border-slate-200 rounded-2xl p-4 space-y-2 bg-slate-50/50">
+        <p className="text-xs font-bold text-slate-800">Leaderboard Configuration</p>
+        <div className="flex gap-4 text-xs text-slate-700">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.leaderboardVisible} onChange={(e) => setForm((f) => ({ ...f, leaderboardVisible: e.target.checked }))} />
-            Visible to students
+            <input type="checkbox" className="accent-[#3760F8]" checked={form.leaderboardVisible} onChange={(e) => setForm((f) => ({ ...f, leaderboardVisible: e.target.checked }))} />
+            Visible to Candidates
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={form.leaderboardAnonymous} onChange={(e) => setForm((f) => ({ ...f, leaderboardAnonymous: e.target.checked }))} />
-            Anonymous
+            <input type="checkbox" className="accent-[#3760F8]" checked={form.leaderboardAnonymous} onChange={(e) => setForm((f) => ({ ...f, leaderboardAnonymous: e.target.checked }))} />
+            Anonymize Names
           </label>
         </div>
       </div>
-      <div className="flex justify-end gap-3 pt-2">
-        <Button variant="outline" onClick={() => { setShowCreate(false); setEditContest(null); }}>Cancel</Button>
-        <Button onClick={onSave} loading={saving}>Save Contest</Button>
+      <div className="flex justify-end gap-2.5 pt-2">
+        <Button variant="outline" size="sm" onClick={() => { setShowCreate(false); setEditContest(null); }}>Cancel</Button>
+        <Button size="sm" onClick={onSave} loading={saving}>Save Contest</Button>
       </div>
     </div>
   );
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Contests</h1>
-        <Button onClick={openCreate}>+ Create Contest</Button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contests Management</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Create, schedule, configure, and supervise programming contests</p>
+        </div>
+        <Button size="sm" onClick={openCreate} leftIcon={<Plus className="w-4 h-4" />}>
+          Create Contest
+        </Button>
       </div>
-      <div className="max-w-sm">
-        <Input placeholder="Search contests..." value={search} onChange={(e) => setSearch(e.target.value)} />
-      </div>
-      <Table columns={columns} data={contests} loading={isLoading} rowKey={(c) => c._id} emptyMessage="No contests found. Create one to get started." />
 
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create Contest" size="lg">
+      <div className="max-w-md">
+        <Input placeholder="Search contests by title..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      </div>
+
+      <Table columns={columns} data={contests} loading={isLoading} rowKey={(c) => c._id} emptyMessage="No contests created yet. Click 'Create Contest' above." />
+
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Create New Contest" size="lg">
         <ContestForm onSave={() => createMutation.mutate(form)} saving={createMutation.isPending} />
       </Modal>
 
-      <Modal open={!!editContest} onClose={() => setEditContest(null)} title="Edit Contest" size="lg">
+      <Modal open={!!editContest} onClose={() => setEditContest(null)} title="Edit Contest Settings" size="lg">
         <ContestForm onSave={() => editContest && updateMutation.mutate({ id: editContest._id, d: form })} saving={updateMutation.isPending} />
       </Modal>
 
-      <Modal open={!!timingModal} onClose={() => setTimingModal(null)} title="Adjust Contest Time" size="sm">
+      <Modal open={!!timingModal} onClose={() => setTimingModal(null)} title="Extend Contest Window" size="sm">
         <div className="space-y-4">
-          <p className="text-sm text-gray-600">Adding extension time for: <strong>{timingModal?.title}</strong></p>
-          <Input label="Extension (minutes)" type="number" value={extensionMin} onChange={(e) => setExtensionMin(e.target.value)} />
-          <Input label="Reason" value={timingReason} onChange={(e) => setTimingReason(e.target.value)} />
-          <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={() => setTimingModal(null)}>Cancel</Button>
-            <Button loading={timingMutation.isPending} onClick={() => timingModal && timingMutation.mutate({ id: timingModal.id, ext: Number(extensionMin), reason: timingReason })}>Apply Extension</Button>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Grant extra time extension for active candidates in <strong>{timingModal?.title}</strong>:
+          </p>
+          <Input label="Extension Minutes" type="number" value={extensionMin} onChange={(e) => setExtensionMin(e.target.value)} placeholder="e.g. 15" />
+          <Input label="Official Reason" value={timingReason} onChange={(e) => setTimingReason(e.target.value)} placeholder="e.g. Technical delay" />
+          <div className="flex gap-2.5 justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={() => setTimingModal(null)}>Cancel</Button>
+            <Button size="sm" loading={timingMutation.isPending} onClick={() => timingModal && timingMutation.mutate({ id: timingModal.id, ext: Number(extensionMin), reason: timingReason })}>Apply Extension</Button>
           </div>
         </div>
       </Modal>
@@ -250,8 +331,8 @@ export default function ContestsPage() {
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         loading={deleteMutation.isPending}
         title="Delete Contest"
-        message="Are you sure? This will permanently delete the contest and all associated data."
-        confirmLabel="Delete"
+        message="Are you sure you want to delete this contest? All question sections, attempts, and submitted solutions will be permanently removed."
+        confirmLabel="Delete Contest"
         danger
       />
     </div>

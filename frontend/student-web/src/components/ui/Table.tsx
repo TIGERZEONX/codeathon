@@ -25,47 +25,51 @@ export function Table<T>({
 }: TableProps<T>) {
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
+      <div className="flex justify-center py-20">
         <Spinner size="lg" />
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            {columns.map((c) => (
-              <th
-                key={c.key}
-                className={`px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide ${c.className || ''}`}
-              >
-                {c.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-100">
-          {data.length === 0 ? (
+    <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200/80">
+          <thead className="bg-slate-50/80 backdrop-blur-xs">
             <tr>
-              <td colSpan={columns.length} className="text-center py-12 text-gray-400">
-                {emptyMessage}
-              </td>
+              {columns.map((c) => (
+                <th
+                  key={c.key}
+                  className={`px-5 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider ${
+                    c.className || ''
+                  }`}
+                >
+                  {c.header}
+                </th>
+              ))}
             </tr>
-          ) : (
-            data.map((row) => (
-              <tr key={rowKey(row)} className="hover:bg-gray-50 transition-colors">
-                {columns.map((c) => (
-                  <td key={c.key} className="px-4 py-3 text-sm text-gray-800">
-                    {c.render ? c.render(row) : (row as Record<string, unknown>)[c.key] as React.ReactNode}
-                  </td>
-                ))}
+          </thead>
+          <tbody className="divide-y divide-slate-100 bg-white">
+            {data.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-16 text-sm text-slate-400">
+                  {emptyMessage}
+                </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
+            ) : (
+              data.map((row) => (
+                <tr key={rowKey(row)} className="hover:bg-slate-50/70 transition-colors">
+                  {columns.map((c) => (
+                    <td key={c.key} className="px-5 py-3.5 text-sm text-slate-800">
+                      {c.render ? c.render(row) : ((row as Record<string, unknown>)[c.key] as React.ReactNode)}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

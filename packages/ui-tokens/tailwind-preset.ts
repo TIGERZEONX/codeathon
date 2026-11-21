@@ -30,8 +30,8 @@ export const codeathonTailwindPreset: TailwindConfigPreset = {
       borderRadius: tokens.borderRadius,
       boxShadow: tokens.boxShadow,
       fontFamily: {
-        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
-        sans: ['var(--font-text)', 'system-ui', 'sans-serif'],
+        display: ['Poppins', 'var(--font-poppins)', 'system-ui', 'sans-serif'],
+        sans: ['Poppins', 'var(--font-poppins)', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'monospace'],
       },
       minHeight: {
@@ -45,4 +45,3 @@ export const codeathonTailwindPreset: TailwindConfigPreset = {
 };
 
 export default codeathonTailwindPreset;
-

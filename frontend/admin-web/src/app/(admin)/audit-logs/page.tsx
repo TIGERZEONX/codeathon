@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { auditLogsApi } from '@/lib/api';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
+import { ScrollText, Clock, User, Shield } from 'lucide-react';
 
 interface AuditLog {
   _id: string;
@@ -16,11 +17,11 @@ interface AuditLog {
   ipAddress?: string;
 }
 
-const actionColor = (action: string): 'red' | 'green' | 'blue' | 'yellow' | 'gray' => {
+const actionColor = (action: string): 'red' | 'green' | 'primary' | 'yellow' | 'gray' => {
   if (action.includes('delete') || action.includes('revoke')) return 'red';
   if (action.includes('create') || action.includes('seed')) return 'green';
   if (action.includes('update') || action.includes('edit')) return 'yellow';
-  if (action.includes('login') || action.includes('logout')) return 'blue';
+  if (action.includes('login') || action.includes('logout')) return 'primary';
   return 'gray';
 };
 
@@ -35,54 +36,80 @@ export default function AuditLogsPage() {
 
   const columns = [
     {
-      key: 'createdAt', header: 'Time',
+      key: 'createdAt',
+      header: 'Timestamp',
       render: (l: AuditLog) => (
-        <span className="text-xs font-mono text-gray-500">{new Date(l.createdAt).toLocaleString()}</span>
-      ),
-    },
-    {
-      key: 'actor', header: 'User',
-      render: (l: AuditLog) => (
-        <div>
-          <div className="text-sm font-medium text-gray-900">{l.actorName || '—'}</div>
-          <div className="text-xs text-gray-400">{l.actorEmail || ''}</div>
-        </div>
-      ),
-    },
-    {
-      key: 'action', header: 'Action',
-      render: (l: AuditLog) => (
-        <Badge color={actionColor(l.action)}>{l.action}</Badge>
-      ),
-    },
-    {
-      key: 'resource', header: 'Resource',
-      render: (l: AuditLog) => (
-        <span className="text-sm text-gray-600">
-          {l.resource || '—'}
-          {l.resourceId && <span className="ml-1 text-xs text-gray-400 font-mono">{l.resourceId.slice(-6)}</span>}
+        <span className="text-[11px] font-mono text-slate-500 font-medium">
+          {new Date(l.createdAt).toLocaleString([], { dateStyle: 'short', timeStyle: 'medium' })}
         </span>
       ),
     },
     {
-      key: 'details', header: 'Details',
+      key: 'actor',
+      header: 'Actor & Session',
       render: (l: AuditLog) => (
-        <span className="text-xs text-gray-500 truncate max-w-xs block">{l.details || '—'}</span>
+        <div>
+          <span className="text-xs font-semibold text-slate-900 tracking-tight block">
+            {l.actorName || 'System'}
+          </span>
+          <span className="text-[11px] text-slate-400 font-mono">{l.actorEmail || ''}</span>
+        </div>
       ),
     },
     {
-      key: 'ipAddress', header: 'IP',
+      key: 'action',
+      header: 'Audit Action',
       render: (l: AuditLog) => (
-        <span className="text-xs font-mono text-gray-400">{l.ipAddress || '—'}</span>
+        <Badge color={actionColor(l.action)} dot>
+          {l.action.toUpperCase()}
+        </Badge>
+      ),
+    },
+    {
+      key: 'resource',
+      header: 'Target Resource',
+      render: (l: AuditLog) => (
+        <span className="text-xs font-semibold text-slate-700">
+          {l.resource || '—'}
+          {l.resourceId && (
+            <span className="ml-1.5 text-[10px] text-slate-400 font-mono bg-slate-100 px-1.5 py-0.5 rounded">
+              {l.resourceId.slice(-6)}
+            </span>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: 'details',
+      header: 'Activity Details',
+      render: (l: AuditLog) => (
+        <span className="text-xs text-slate-500 truncate max-w-sm block font-sans">
+          {l.details || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'ipAddress',
+      header: 'Network IP',
+      render: (l: AuditLog) => (
+        <span className="text-[11px] font-mono text-slate-400 font-medium">
+          {l.ipAddress || '127.0.0.1'}
+        </span>
       ),
     },
   ];
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto font-sans">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Audit Logs</h1>
-        <span className="text-xs text-gray-500">Last 200 events · Auto-refresh 30s</span>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Audit Trail &amp; Governance</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Immutable record of security mutations, logins, and contest administrative actions</p>
+        </div>
+        <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
+          <Clock className="w-3.5 h-3.5 text-slate-400" />
+          <span>Polled 30s</span>
+        </div>
       </div>
 
       <Table
@@ -90,7 +117,7 @@ export default function AuditLogsPage() {
         data={logs}
         loading={isLoading}
         rowKey={(l) => l._id}
-        emptyMessage="No audit log entries found."
+        emptyMessage="No audit log activity entries recorded yet."
       />
     </div>
   );

@@ -1,56 +1,74 @@
 /**
  * Codeathon Design Tokens
- * Light theme only. Base color driven, flat surfaces, clear borders, confident type scale.
+ * Modern high-tech UI with Primary #3760F8 (Cobalt / Electric Blue)
+ * and Secondary #D3FE4F (Neon Lime / Electric Chartreuse)
  */
 
-export const DEFAULT_BASE_COLOR = '#0F52BA'; // Sapphire Blue
+export const DEFAULT_PRIMARY_COLOR = '#3760F8';
+export const DEFAULT_SECONDARY_COLOR = '#D3FE4F';
 
 export const tokens = {
   colors: {
-    // Base palette driven by --color-base
-    base: {
-      50: 'var(--color-base-50, #EFF6FF)',
-      100: 'var(--color-base-100, #DBEAFE)',
-      200: 'var(--color-base-200, #BFDBFE)',
-      300: 'var(--color-base-300, #93C5FD)',
-      400: 'var(--color-base-400, #60A5FA)',
-      500: 'var(--color-base-500, #2563EB)',
-      DEFAULT: 'var(--color-base, #0F52BA)',
-      600: 'var(--color-base-600, #1D4ED8)',
-      700: 'var(--color-base-700, #1E40AF)',
-      800: 'var(--color-base-800, #1E3A8A)',
-      900: 'var(--color-base-900, #172554)',
+    // Brand Primary (Electric Cobalt Blue #3760F8)
+    primary: {
+      50: '#EEF2FF',
+      100: '#E0E7FF',
+      200: '#C7D2FE',
+      300: '#A5B4FC',
+      400: '#6366F1',
+      500: '#4F46E5',
+      DEFAULT: '#3760F8',
+      600: '#254EDB',
+      700: '#1D40B8',
+      800: '#173394',
+      900: '#0F1E5C',
     },
-    // Ink (Text)
+    // Brand Secondary (Neon Lime #D3FE4F)
+    secondary: {
+      50: '#F7FEE7',
+      100: '#ECFCCB',
+      200: '#E9FEA2',
+      DEFAULT: '#D3FE4F',
+      hover: '#C2F038',
+      dark: '#A4D817',
+      800: '#4D7C0F',
+      900: '#365314',
+    },
+    // Base palette
+    base: {
+      50: '#EEF2FF',
+      100: '#E0E7FF',
+      200: '#C7D2FE',
+      300: '#A5B4FC',
+      400: '#6366F1',
+      500: '#3760F8',
+      DEFAULT: '#3760F8',
+      600: '#254EDB',
+      700: '#1D40B8',
+      800: '#173394',
+      900: '#0F1E5C',
+    },
+    // Ink (Typography)
     ink: {
-      primary: 'var(--color-ink-primary, #0F172A)',
-      secondary: 'var(--color-ink-secondary, #334155)',
-      muted: 'var(--color-ink-muted, #64748B)',
-      disabled: 'var(--color-ink-disabled, #94A3B8)',
-      inverse: 'var(--color-ink-inverse, #FFFFFF)',
+      primary: '#0B0F19',
+      secondary: '#1E293B',
+      muted: '#64748B',
+      disabled: '#94A3B8',
+      inverse: '#FFFFFF',
     },
     // Paper (Surfaces & Backgrounds)
     paper: {
-      DEFAULT: 'var(--color-paper, #FFFFFF)',
-      subtle: 'var(--color-paper-subtle, #F8FAFC)',
-      muted: 'var(--color-paper-muted, #F1F5F9)',
-      elevated: 'var(--color-paper-elevated, #FFFFFF)',
+      DEFAULT: '#FFFFFF',
+      subtle: '#F8FAFC',
+      muted: '#F1F5F9',
+      elevated: '#FFFFFF',
     },
     // Line (Borders & Dividers)
     line: {
-      subtle: 'var(--color-line-subtle, #F1F5F9)',
-      DEFAULT: 'var(--color-line, #E2E8F0)',
-      strong: 'var(--color-line-strong, #CBD5E1)',
-      focus: 'var(--color-line-focus, #0F52BA)',
-    },
-    // Warm accent complementary to the cool base
-    accent: {
-      50: 'var(--color-accent-50, #FFF7ED)',
-      100: 'var(--color-accent-100, #FFEDD5)',
-      500: 'var(--color-accent-500, #F97316)',
-      DEFAULT: 'var(--color-accent, #EA580C)',
-      600: 'var(--color-accent-600, #C2410C)',
-      700: 'var(--color-accent-700, #9A3412)',
+      subtle: '#F1F5F9',
+      DEFAULT: '#E2E8F0',
+      strong: '#CBD5E1',
+      focus: '#3760F8',
     },
     // Semantics
     success: {
@@ -88,19 +106,21 @@ export const tokens = {
   },
   borderRadius: {
     none: '0',
-    sm: '4px',
-    DEFAULT: '6px',
-    md: '6px',
-    lg: '8px',
-    xl: '12px',
-    '2xl': '16px',
+    sm: '6px',
+    DEFAULT: '10px',
+    md: '10px',
+    lg: '14px',
+    xl: '18px',
+    '2xl': '24px',
     full: '9999px',
   },
   boxShadow: {
-    subtle: '0 1px 2px 0 rgba(15, 23, 42, 0.05)',
-    card: '0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.08)',
-    raised: '0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.06)',
-    modal: '0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.08)',
+    subtle: '0 1px 3px 0 rgba(11, 15, 25, 0.04)',
+    card: '0 2px 8px -2px rgba(11, 15, 25, 0.06), 0 1px 4px -1px rgba(11, 15, 25, 0.04)',
+    raised: '0 8px 20px -4px rgba(11, 15, 25, 0.08), 0 4px 8px -3px rgba(11, 15, 25, 0.04)',
+    modal: '0 20px 35px -5px rgba(11, 15, 25, 0.14), 0 10px 15px -5px rgba(11, 15, 25, 0.08)',
+    glow: '0 0 20px -3px rgba(55, 96, 248, 0.35)',
+    neon: '0 0 15px -2px rgba(211, 254, 79, 0.45)',
   },
   screens: {
     xs: '360px',
@@ -115,39 +135,13 @@ export const tokens = {
 
 export const cssRootVariables = `
 :root {
-  --color-base: #0F52BA;
-  --color-base-50: #EFF6FF;
-  --color-base-100: #DBEAFE;
-  --color-base-200: #BFDBFE;
-  --color-base-300: #93C5FD;
-  --color-base-400: #60A5FA;
-  --color-base-500: #2563EB;
-  --color-base-600: #1D4ED8;
-  --color-base-700: #1E40AF;
-  --color-base-800: #1E3A8A;
-  --color-base-900: #172554;
-
-  --color-ink-primary: #0F172A;
-  --color-ink-secondary: #334155;
+  --font-poppins: 'Poppins', sans-serif;
+  --color-primary: #3760F8;
+  --color-primary-hover: #254EDB;
+  --color-secondary: #D3FE4F;
+  --color-secondary-hover: #C2F038;
+  --color-ink-primary: #0B0F19;
+  --color-ink-secondary: #1E293B;
   --color-ink-muted: #64748B;
-  --color-ink-disabled: #94A3B8;
-  --color-ink-inverse: #FFFFFF;
-
-  --color-paper: #FFFFFF;
-  --color-paper-subtle: #F8FAFC;
-  --color-paper-muted: #F1F5F9;
-  --color-paper-elevated: #FFFFFF;
-
-  --color-line-subtle: #F1F5F9;
-  --color-line: #E2E8F0;
-  --color-line-strong: #CBD5E1;
-  --color-line-focus: #0F52BA;
-
-  --color-accent: #EA580C;
-  --color-accent-50: #FFF7ED;
-  --color-accent-100: #FFEDD5;
-  --color-accent-500: #F97316;
-  --color-accent-600: #C2410C;
-  --color-accent-700: #9A3412;
 }
 `;

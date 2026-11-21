@@ -18,7 +18,7 @@ export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
-  title = 'Confirm',
+  title = 'Confirm Action',
   message,
   confirmLabel = 'Confirm',
   loading = false,
@@ -26,14 +26,21 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
-      <p className="text-gray-700 mb-6">{message}</p>
-      <div className="flex gap-3 justify-end">
-        <Button variant="outline" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm} loading={loading}>
-          {confirmLabel}
-        </Button>
+      <div className="space-y-5">
+        <p className="text-sm text-slate-600 leading-relaxed">{message}</p>
+        <div className="flex gap-2.5 justify-end pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            variant={danger ? 'danger' : 'primary'}
+            size="sm"
+            onClick={onConfirm}
+            loading={loading}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
       </div>
     </Modal>
   );

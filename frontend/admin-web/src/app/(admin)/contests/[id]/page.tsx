@@ -10,6 +10,19 @@ import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Spinner } from '@/components/ui/Spinner';
 import Link from 'next/link';
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Code2,
+  CheckSquare,
+  Layers,
+  FileQuestion,
+  Users,
+  Trophy,
+  BarChart3,
+  UserCheck,
+} from 'lucide-react';
 
 interface Section { _id: string; title: string; order: number }
 interface Question {
@@ -51,7 +64,6 @@ export default function ContestDetailPage() {
   const [codingForm, setCodingForm] = useState({ ...EMPTY_CODING });
   const [deleteQ, setDeleteQ] = useState<string | null>(null);
   const [deleteSec, setDeleteSec] = useState<string | null>(null);
-  const [editQ, setEditQ] = useState<Question | null>(null);
 
   const { data: contestData } = useQuery({ queryKey: ['contest', contestId], queryFn: () => contestsApi.get(contestId) });
   const contest = contestData as { title?: string } | null;
@@ -111,45 +123,119 @@ export default function ContestDetailPage() {
   const isLoading = secLoading || qLoading;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Link href="/contests" className="text-blue-600 hover:underline text-sm">← Contests</Link>
-        <h1 className="text-2xl font-bold text-gray-900">{contest?.title || 'Contest Detail'}</h1>
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/contests"
+            className="flex items-center gap-1.5 text-xs font-semibold text-[#3760F8] hover:text-[#254EDB] px-3 py-1.5 rounded-lg bg-[#EEF2FF] hover:bg-[#E0E7FF] transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Contests</span>
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Sections'}</h1>
+        </div>
+
+        {/* Quick Nav Pills */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link href={`/attendance/${contestId}`}>
+            <Button variant="outline" size="sm" leftIcon={<UserCheck className="w-3.5 h-3.5 text-slate-500" />}>
+              Attendance
+            </Button>
+          </Link>
+          <Link href={`/assignments/${contestId}`}>
+            <Button variant="outline" size="sm" leftIcon={<Users className="w-3.5 h-3.5 text-slate-500" />}>
+              Assignments
+            </Button>
+          </Link>
+          <Link href={`/leaderboard/${contestId}`}>
+            <Button variant="outline" size="sm" leftIcon={<Trophy className="w-3.5 h-3.5 text-slate-500" />}>
+              Leaderboard
+            </Button>
+          </Link>
+          <Link href={`/reports/${contestId}`}>
+            <Button variant="outline" size="sm" leftIcon={<BarChart3 className="w-3.5 h-3.5 text-slate-500" />}>
+              Reports
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <div className="flex gap-3">
-        <Link href={`/attendance/${contestId}`}><Button variant="outline" size="sm">Attendance</Button></Link>
-        <Link href={`/assignments/${contestId}`}><Button variant="outline" size="sm">Assignments</Button></Link>
-        <Link href={`/leaderboard/${contestId}`}><Button variant="outline" size="sm">Leaderboard</Button></Link>
-        <Link href={`/reports/${contestId}`}><Button variant="outline" size="sm">Reports</Button></Link>
-      </div>
-
-      {isLoading ? <div className="flex justify-center py-16"><Spinner size="lg" /></div> : (
-        <div className="space-y-4">
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Spinner size="lg" /></div>
+      ) : (
+        <div className="space-y-5">
           {sections.map((section) => {
             const sectionQuestions = questions.filter((q) => q.sectionId === section._id);
             return (
-              <div key={section._id} className="bg-white rounded-xl border border-gray-200">
-                <div className="flex items-center justify-between px-5 py-3 border-b bg-gray-50 rounded-t-xl">
-                  <h2 className="font-semibold text-gray-800">{section.title}</h2>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => setAddQModal({ sectionId: section._id, type: 'mcq' })}>+ MCQ</Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddQModal({ sectionId: section._id, type: 'coding' })}>+ Coding</Button>
-                    <button onClick={() => setDeleteSec(section._id)} className="text-xs text-red-500 hover:text-red-700 px-2">Delete Section</button>
+              <div key={section._id} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+                  <div className="flex items-center gap-2.5">
+                    <Layers className="w-4 h-4 text-[#3760F8]" />
+                    <h2 className="font-bold text-slate-900 text-sm tracking-tight">{section.title}</h2>
+                    <span className="text-[11px] font-semibold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-full ml-1">
+                      {sectionQuestions.length} Questions
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAddQModal({ sectionId: section._id, type: 'mcq' })}
+                      leftIcon={<Plus className="w-3 h-3 text-[#3760F8]" />}
+                    >
+                      Add MCQ
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAddQModal({ sectionId: section._id, type: 'coding' })}
+                      leftIcon={<Plus className="w-3 h-3 text-[#3760F8]" />}
+                    >
+                      Add Coding
+                    </Button>
+                    <button
+                      onClick={() => setDeleteSec(section._id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
+                      title="Delete Section"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
+
                 {sectionQuestions.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-6">No questions yet. Add MCQ or Coding questions.</p>
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    No questions added yet to this section. Click &ldquo;Add MCQ&rdquo; or &ldquo;Add Coding&rdquo; above.
+                  </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y divide-slate-100">
                     {sectionQuestions.map((q, qi) => (
-                      <div key={q._id} className="flex items-center gap-3 px-5 py-3">
-                        <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{qi + 1}</span>
-                        <span className="flex-1 text-sm text-gray-800">{q.title}</span>
-                        <Badge color={q.type === 'coding' ? 'purple' : 'blue'}>{q.type}</Badge>
-                        <span className="text-xs text-gray-500">{q.marks}m</span>
-                        {q.negativeMarks ? <span className="text-xs text-red-400">-{q.negativeMarks}</span> : null}
-                        <button onClick={() => setDeleteQ(q._id)} className="text-xs text-red-500 hover:text-red-700 ml-2">Delete</button>
+                      <div key={q._id} className="flex items-center gap-3.5 px-6 py-3.5 hover:bg-slate-50/60 transition-colors">
+                        <span className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 font-mono">
+                          {qi + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-900 truncate tracking-tight">{q.title}</p>
+                        </div>
+                        <Badge color={q.type === 'coding' ? 'purple' : 'primary'}>
+                          {q.type === 'coding' ? 'Coding' : 'MCQ'}
+                        </Badge>
+                        <span className="text-xs font-mono font-bold text-[#3760F8] bg-[#EEF2FF] px-2 py-0.5 rounded-md">
+                          {q.marks} pts
+                        </span>
+                        {q.negativeMarks ? (
+                          <span className="text-xs font-mono font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
+                            -{q.negativeMarks}
+                          </span>
+                        ) : null}
+                        <button
+                          onClick={() => setDeleteQ(q._id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -160,44 +246,54 @@ export default function ContestDetailPage() {
 
           <button
             onClick={() => setAddSection(true)}
-            className="w-full border-2 border-dashed border-gray-300 rounded-xl py-4 text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors text-sm"
+            className="w-full border-2 border-dashed border-slate-200 hover:border-[#3760F8] rounded-2xl py-5 text-slate-500 hover:text-[#3760F8] hover:bg-[#EEF2FF]/20 transition-all text-xs font-semibold flex items-center justify-center gap-2"
           >
-            + Add Section
+            <Plus className="w-4 h-4" />
+            <span>Add New Contest Section</span>
           </button>
         </div>
       )}
 
       {/* Add Section Modal */}
       <Modal open={addSection} onClose={() => setAddSection(false)} title="Add Section" size="sm">
-        <Input label="Section Title" value={sectionTitle} onChange={(e) => setSectionTitle(e.target.value)} placeholder="e.g. Part A — MCQ" />
-        <div className="flex gap-3 justify-end mt-4">
-          <Button variant="outline" onClick={() => setAddSection(false)}>Cancel</Button>
-          <Button onClick={() => createSection.mutate()} loading={createSection.isPending}>Add</Button>
+        <div className="space-y-4">
+          <Input label="Section Title" value={sectionTitle} onChange={(e) => setSectionTitle(e.target.value)} placeholder="e.g. Part A: Fundamental Algorithms" />
+          <div className="flex gap-2.5 justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={() => setAddSection(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => createSection.mutate()} loading={createSection.isPending}>Add Section</Button>
+          </div>
         </div>
       </Modal>
 
       {/* Add MCQ Modal */}
-      <Modal open={!!addQModal && addQModal.type === 'mcq'} onClose={() => setAddQModal(null)} title="Add MCQ Question" size="lg">
-        <div className="space-y-3">
-          <Input label="Title" value={mcqForm.title} onChange={(e) => setMcqForm((f) => ({ ...f, title: e.target.value }))} />
+      <Modal open={!!addQModal && addQModal.type === 'mcq'} onClose={() => setAddQModal(null)} title="Create Multiple Choice Question" size="lg">
+        <div className="space-y-4">
+          <Input label="Question Title" value={mcqForm.title} onChange={(e) => setMcqForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Time complexity of QuickSelect" />
           <div>
-            <label className="text-sm font-medium text-gray-700">Statement</label>
-            <textarea className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" rows={3} value={mcqForm.statement} onChange={(e) => setMcqForm((f) => ({ ...f, statement: e.target.value }))} />
+            <label className="text-xs font-semibold text-slate-700">Problem Statement</label>
+            <textarea
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none"
+              rows={3}
+              value={mcqForm.statement}
+              onChange={(e) => setMcqForm((f) => ({ ...f, statement: e.target.value }))}
+              placeholder="State the problem scenario..."
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Marks" type="number" value={String(mcqForm.marks)} onChange={(e) => setMcqForm((f) => ({ ...f, marks: Number(e.target.value) }))} />
-            <Input label="Negative Marks" type="number" value={String(mcqForm.negativeMarks)} onChange={(e) => setMcqForm((f) => ({ ...f, negativeMarks: Number(e.target.value) }))} />
+            <Input label="Positive Marks" type="number" value={String(mcqForm.marks)} onChange={(e) => setMcqForm((f) => ({ ...f, marks: Number(e.target.value) }))} />
+            <Input label="Negative Penalty" type="number" value={String(mcqForm.negativeMarks)} onChange={(e) => setMcqForm((f) => ({ ...f, negativeMarks: Number(e.target.value) }))} />
           </div>
-          <label className="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={mcqForm.isMultiSelect} onChange={(e) => setMcqForm((f) => ({ ...f, isMultiSelect: e.target.checked }))} />
-            Multi-select
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+            <input type="checkbox" className="w-4 h-4 accent-[#3760F8] rounded" checked={mcqForm.isMultiSelect} onChange={(e) => setMcqForm((f) => ({ ...f, isMultiSelect: e.target.checked }))} />
+            <span>Multiple Choice (Multiple Correct Options Allowed)</span>
           </label>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">Options (check correct answers)</label>
+          <div className="space-y-2.5 pt-1">
+            <label className="text-xs font-bold text-slate-800">Options &amp; Correct Answer Check</label>
             {mcqForm.options.map((opt, oi) => (
-              <div key={oi} className="flex items-center gap-2">
+              <div key={oi} className="flex items-center gap-2.5">
                 <input
                   type="checkbox"
+                  className="w-4 h-4 accent-[#3760F8] rounded"
                   checked={opt.isCorrect}
                   onChange={(e) => setMcqForm((f) => ({
                     ...f,
@@ -205,9 +301,9 @@ export default function ContestDetailPage() {
                   }))}
                 />
                 <input
-                  className="flex-1 border rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none"
                   value={opt.text}
-                  placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                  placeholder={`Option ${String.fromCharCode(65 + oi)} statement`}
                   onChange={(e) => setMcqForm((f) => ({
                     ...f,
                     options: f.options.map((o, i) => i === oi ? { ...o, text: e.target.value } : o),
@@ -216,61 +312,77 @@ export default function ContestDetailPage() {
               </div>
             ))}
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" onClick={() => setAddQModal(null)}>Cancel</Button>
-            <Button onClick={() => addQModal && createMcq.mutate(addQModal.sectionId)} loading={createMcq.isPending}>Add Question</Button>
+          <div className="flex gap-2.5 justify-end pt-3">
+            <Button variant="outline" size="sm" onClick={() => setAddQModal(null)}>Cancel</Button>
+            <Button size="sm" onClick={() => addQModal && createMcq.mutate(addQModal.sectionId)} loading={createMcq.isPending}>Add MCQ Question</Button>
           </div>
         </div>
       </Modal>
 
       {/* Add Coding Modal */}
-      <Modal open={!!addQModal && addQModal.type === 'coding'} onClose={() => setAddQModal(null)} title="Add Coding Question" size="xl">
-        <div className="space-y-3">
-          <Input label="Title" value={codingForm.title} onChange={(e) => setCodingForm((f) => ({ ...f, title: e.target.value }))} />
+      <Modal open={!!addQModal && addQModal.type === 'coding'} onClose={() => setAddQModal(null)} title="Create Coding Problem" size="xl">
+        <div className="space-y-4">
+          <Input label="Problem Title" value={codingForm.title} onChange={(e) => setCodingForm((f) => ({ ...f, title: e.target.value }))} placeholder="e.g. Subarray with Given Sum" />
           <div>
-            <label className="text-sm font-medium text-gray-700">Problem Statement</label>
-            <textarea className="mt-1 w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" rows={5} value={codingForm.statement} onChange={(e) => setCodingForm((f) => ({ ...f, statement: e.target.value }))} />
+            <label className="text-xs font-semibold text-slate-700">Detailed Statement &amp; Constraints</label>
+            <textarea
+              className="mt-1 w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none font-sans"
+              rows={5}
+              value={codingForm.statement}
+              onChange={(e) => setCodingForm((f) => ({ ...f, statement: e.target.value }))}
+              placeholder="Describe input, output, constraints and examples..."
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Marks" type="number" value={String(codingForm.marks)} onChange={(e) => setCodingForm((f) => ({ ...f, marks: Number(e.target.value) }))} />
+            <Input label="Max Score Marks" type="number" value={String(codingForm.marks)} onChange={(e) => setCodingForm((f) => ({ ...f, marks: Number(e.target.value) }))} />
             <Input label="Negative Marks" type="number" value={String(codingForm.negativeMarks)} onChange={(e) => setCodingForm((f) => ({ ...f, negativeMarks: Number(e.target.value) }))} />
           </div>
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-gray-700">Test Cases</label>
-              <button className="text-xs text-blue-600 hover:underline" onClick={() => setCodingForm((f) => ({ ...f, testCases: [...f.testCases, { input: '', output: '', isHidden: false }] }))}>+ Add Case</button>
+              <label className="text-xs font-bold text-slate-800">Test Cases Suite</label>
+              <button
+                className="text-xs font-semibold text-[#3760F8] hover:underline"
+                onClick={() => setCodingForm((f) => ({ ...f, testCases: [...f.testCases, { input: '', output: '', isHidden: false }] }))}
+              >
+                + Add Test Case
+              </button>
             </div>
             {codingForm.testCases.map((tc, ti) => (
-              <div key={ti} className="border rounded-lg p-3 mb-2 space-y-2">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-gray-600">Case {ti + 1}</span>
-                  <label className="flex items-center gap-1 text-xs cursor-pointer ml-auto">
-                    <input type="checkbox" checked={tc.isHidden} onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, isHidden: e.target.checked } : t) }))} />
-                    Hidden
+              <div key={ti} className="border border-slate-200 rounded-2xl p-3.5 mb-2.5 space-y-2 bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700 font-mono">Case {ti + 1}</span>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-[#3760F8] rounded"
+                      checked={tc.isHidden}
+                      onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, isHidden: e.target.checked } : t) }))}
+                    />
+                    <span>Hidden from Student</span>
                   </label>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-xs text-gray-500">Input</label>
-                    <textarea className="w-full border rounded px-2 py-1 text-xs font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none" rows={2} value={tc.input} onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, input: e.target.value } : t) }))} />
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase">STDIN</label>
+                    <textarea className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-[#3760F8] focus:outline-none bg-white" rows={2} value={tc.input} onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, input: e.target.value } : t) }))} />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Expected Output</label>
-                    <textarea className="w-full border rounded px-2 py-1 text-xs font-mono focus:ring-1 focus:ring-blue-500 focus:outline-none" rows={2} value={tc.output} onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, output: e.target.value } : t) }))} />
+                    <label className="text-[10px] font-semibold text-slate-500 uppercase">STDOUT</label>
+                    <textarea className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-[#3760F8] focus:outline-none bg-white" rows={2} value={tc.output} onChange={(e) => setCodingForm((f) => ({ ...f, testCases: f.testCases.map((t, i) => i === ti ? { ...t, output: e.target.value } : t) }))} />
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" onClick={() => setAddQModal(null)}>Cancel</Button>
-            <Button onClick={() => addQModal && createCoding.mutate(addQModal.sectionId)} loading={createCoding.isPending}>Add Question</Button>
+          <div className="flex gap-2.5 justify-end pt-3">
+            <Button variant="outline" size="sm" onClick={() => setAddQModal(null)}>Cancel</Button>
+            <Button size="sm" onClick={() => addQModal && createCoding.mutate(addQModal.sectionId)} loading={createCoding.isPending}>Add Coding Problem</Button>
           </div>
         </div>
       </Modal>
 
-      <ConfirmDialog open={!!deleteQ} onClose={() => setDeleteQ(null)} onConfirm={() => deleteQ && deleteQuestion.mutate(deleteQ)} loading={deleteQuestion.isPending} title="Delete Question" message="Delete this question?" danger confirmLabel="Delete" />
-      <ConfirmDialog open={!!deleteSec} onClose={() => setDeleteSec(null)} onConfirm={() => deleteSec && deleteSection.mutate(deleteSec)} loading={deleteSection.isPending} title="Delete Section" message="Delete this section and all its questions?" danger confirmLabel="Delete" />
+      <ConfirmDialog open={!!deleteQ} onClose={() => setDeleteQ(null)} onConfirm={() => deleteQ && deleteQuestion.mutate(deleteQ)} loading={deleteQuestion.isPending} title="Delete Question" message="Are you sure you want to delete this question? Any submitted answers to this question will be affected." danger confirmLabel="Delete" />
+      <ConfirmDialog open={!!deleteSec} onClose={() => setDeleteSec(null)} onConfirm={() => deleteSec && deleteSection.mutate(deleteSec)} loading={deleteSection.isPending} title="Delete Section" message="Are you sure you want to delete this whole section and its questions?" danger confirmLabel="Delete" />
     </div>
   );
 }

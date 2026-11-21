@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Badge } from '@/components/ui/Badge';
+import { Plus, UploadCloud, Download, Trash2, Search, User, Network } from 'lucide-react';
 
 interface Participant {
   _id: string;
@@ -59,78 +61,124 @@ export default function ParticipantsPage() {
   };
 
   const columns = [
-    { key: 'rollNumber', header: 'Roll No.' },
-    { key: 'name', header: 'Name' },
-    { key: 'email', header: 'Email' },
-    { key: 'department', header: 'Department', render: (p: Participant) => p.department || '—' },
-    { key: 'teamName', header: 'Team', render: (p: Participant) => p.teamName || '—' },
+    {
+      key: 'rollNumber',
+      header: 'Roll No.',
+      render: (p: Participant) => (
+        <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+          {p.rollNumber}
+        </span>
+      ),
+    },
+    {
+      key: 'name',
+      header: 'Candidate Name',
+      render: (p: Participant) => (
+        <div className="font-semibold text-slate-900 text-xs tracking-tight">
+          {p.name}
+        </div>
+      ),
+    },
+    {
+      key: 'email',
+      header: 'Email Address',
+      render: (p: Participant) => (
+        <span className="text-xs text-slate-500 font-mono">{p.email}</span>
+      ),
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      render: (p: Participant) => (
+        p.department ? <Badge color="primary">{p.department}</Badge> : <span className="text-slate-400 text-xs">—</span>
+      ),
+    },
+    {
+      key: 'teamName',
+      header: 'Team',
+      render: (p: Participant) => (
+        p.teamName ? <Badge color="neon">{p.teamName}</Badge> : <span className="text-slate-400 text-xs">Individual</span>
+      ),
+    },
     {
       key: 'actions',
       header: 'Actions',
       render: (p: Participant) => (
-        <button onClick={() => setDeleteId(p._id)} className="text-xs text-red-600 hover:underline">
-          Delete
+        <button
+          onClick={() => setDeleteId(p._id)}
+          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+          title="Delete Candidate"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       ),
     },
   ];
 
   return (
-    <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Participants</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport}>Export CSV</Button>
-          <Button variant="outline" onClick={() => setShowImport(true)}>Bulk Import</Button>
-          <Button onClick={() => setShowCreate(true)}>+ Add Participant</Button>
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Candidate Roster</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Manage student profiles, credentials, and bulk admissions</p>
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleExport} leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}>
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowImport(true)} leftIcon={<UploadCloud className="w-3.5 h-3.5 text-[#3760F8]" />}>
+            Bulk CSV
+          </Button>
+          <Button size="sm" onClick={() => setShowCreate(true)} leftIcon={<Plus className="w-3.5 h-3.5" />}>
+            Add Candidate
+          </Button>
         </div>
       </div>
 
-      <div className="max-w-sm">
-        <Input placeholder="Search by name, roll no, email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="max-w-md">
+        <Input placeholder="Filter by roll number, name, or department..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <Table columns={columns} data={participants} loading={isLoading} rowKey={(p) => p._id} emptyMessage="No participants found." />
+      <Table columns={columns} data={participants} loading={isLoading} rowKey={(p) => p._id} emptyMessage="No candidates registered yet. Click 'Add Candidate' or 'Bulk CSV'." />
 
       {/* Create Modal */}
-      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Add Participant">
-        <div className="space-y-3">
-          <Input label="Roll Number" value={form.rollNumber} onChange={(e) => setForm((f) => ({ ...f, rollNumber: e.target.value }))} required />
-          <Input label="Full Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-          <Input label="Department" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} />
-          <Input label="Initial Password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} helperText="If blank, defaults to roll number." />
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={() => createMutation.mutate()} loading={createMutation.isPending}>Add</Button>
+      <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Register Single Candidate">
+        <div className="space-y-4">
+          <Input label="Roll Number / ID" value={form.rollNumber} onChange={(e) => setForm((f) => ({ ...f, rollNumber: e.target.value }))} placeholder="e.g. CS2026003" required />
+          <Input label="Full Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. John Doe" required />
+          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="student@university.edu" />
+          <Input label="Department" value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} placeholder="e.g. CSE / IT" />
+          <Input label="Temporary Password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} helperText="Leave blank to default to roll number." />
+          <div className="flex gap-2.5 justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => createMutation.mutate()} loading={createMutation.isPending}>Add Candidate</Button>
           </div>
         </div>
       </Modal>
 
       {/* Bulk Import Modal */}
-      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Participants" size="lg">
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Candidates via CSV" size="lg">
         <div className="space-y-3">
-          <p className="text-sm text-gray-600">
-            Paste CSV data with columns: <code className="bg-gray-100 px-1 rounded">rollNumber,name,email,department,password</code>
+          <p className="text-xs text-slate-600 leading-relaxed">
+            Paste raw CSV data with column headers: <code className="bg-slate-100 text-[#3760F8] px-1.5 py-0.5 rounded font-mono text-xs">rollNumber,name,email,department,password</code>
           </p>
-          <p className="text-xs text-gray-500">First row should be the header. Password column is optional.</p>
           <textarea
-            className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none h-48"
+            className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none h-48 bg-slate-50/50 leading-relaxed"
             placeholder={'rollNumber,name,email,department\nCS2026001,Alice Smith,alice@example.com,CSE\nCS2026002,Bob Jones,bob@example.com,ECE'}
             value={csvText}
             onChange={(e) => setCsvText(e.target.value)}
           />
           {importMutation.isError && (
-            <p className="text-red-600 text-sm">
-              {(importMutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Import failed'}
+            <p className="text-rose-600 text-xs font-medium">
+              {(importMutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message || 'CSV Import failed. Check formatting.'}
             </p>
           )}
           {importMutation.isSuccess && (
-            <p className="text-green-600 text-sm">Import successful!</p>
+            <p className="text-emerald-600 text-xs font-semibold">Bulk import processed successfully!</p>
           )}
-          <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={() => setShowImport(false)}>Cancel</Button>
-            <Button onClick={() => importMutation.mutate()} loading={importMutation.isPending}>Import</Button>
+          <div className="flex gap-2.5 justify-end pt-2">
+            <Button variant="outline" size="sm" onClick={() => setShowImport(false)}>Cancel</Button>
+            <Button size="sm" onClick={() => importMutation.mutate()} loading={importMutation.isPending}>Import Batch</Button>
           </div>
         </div>
       </Modal>
@@ -140,9 +188,9 @@ export default function ParticipantsPage() {
         onClose={() => setDeleteId(null)}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         loading={deleteMutation.isPending}
-        title="Delete Participant"
-        message="Are you sure you want to delete this participant? This action cannot be undone."
-        confirmLabel="Delete"
+        title="Delete Candidate Record"
+        message="Are you sure you want to remove this student? All attendance records, submissions, and contest attempts will be erased."
+        confirmLabel="Delete Candidate"
         danger
       />
     </div>
