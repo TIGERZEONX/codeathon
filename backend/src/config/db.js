@@ -34,7 +34,7 @@ export const connectDB = async () => {
     }
 
     // 2. Fallback to Local MongoDB if primary was Atlas
-    const localUri = 'mongodb://localhost:27017/codeathon';
+    const localUri = 'mongodb://localhost:27017/hirepro';
     if (env.MONGO_URI !== localUri) {
       try {
         logger.info(`Falling back to local MongoDB daemon: ${localUri}`);

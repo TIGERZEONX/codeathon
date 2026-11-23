@@ -63,8 +63,8 @@ export default function LoginPage() {
             <Code2 className="text-white w-7 h-7" />
             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#D3FE4F] rounded-full border-2 border-white shadow-xs" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Student Portal</h1>
-          <p className="text-xs text-slate-500 mt-1">Sign in with your roll number to access your contests</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">HirePro Candidate Portal</h1>
+          <p className="text-xs text-slate-500 mt-1">Sign in with your Candidate ID or Email to access your assessments</p>
         </div>
 
         {/* Card */}
@@ -137,7 +137,7 @@ export default function LoginPage() {
                   <span>Signing in…</span>
                 </>
               ) : (
-                <span>Sign In to Contest Portal</span>
+                <span>Sign In to Assessment</span>
               )}
             </button>
           </form>
@@ -147,11 +147,11 @@ export default function LoginPage() {
               href="http://localhost:3001/login"
               className="text-[#3760F8] hover:underline font-medium flex items-center gap-1.5"
             >
-              <span>Admin, Proctor or Evaluator? Open Admin Console &rarr;</span>
+              <span>Administrator or Proctor? Open Admin Console &rarr;</span>
             </a>
             <div className="flex items-center gap-1.5 text-slate-400 text-[11px] mt-1">
               <ShieldCheck className="w-3.5 h-3.5 text-[#3760F8]" />
-              <span>Encrypted Session &bull; Fast Auto-Reconnect</span>
+              <span>Secure Assessment Session</span>
             </div>
           </div>
         </div>

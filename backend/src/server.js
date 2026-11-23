@@ -26,7 +26,7 @@ const startServer = async () => {
 
     const PORT = env.PORT || 5000;
     server.listen(PORT, () => {
-      logger.info(`🚀 Codeathon Backend API listening on port ${PORT} [${env.NODE_ENV}]`);
+      logger.info(`🚀 HirePro Backend API listening on port ${PORT} [${env.NODE_ENV}]`);
       logger.info(`📖 Swagger documentation available at http://localhost:${PORT}/api/docs`);
       logger.info(`🩺 Health endpoint available at http://localhost:${PORT}/api/health`);
     });

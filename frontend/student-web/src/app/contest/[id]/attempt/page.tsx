@@ -650,20 +650,20 @@ export default function AttemptPage() {
         {/* Left: Brand & Contest Title */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-[#3760F8] text-white flex items-center justify-center font-extrabold text-sm shadow-[0_2px_10px_rgba(55,96,248,0.3)] shrink-0 relative">
-            <span>C</span>
+            <span>H</span>
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#D3FE4F] border-2 border-white" />
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight truncate max-w-xs sm:max-w-md">
-                {attempt?.contest?.title || 'National Assessment Examination'}
+                {attempt?.contest?.title || 'HirePro Assessment'}
               </h1>
               <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold text-[#3760F8] bg-[#EEF2FF] border border-[#C7D2FE] uppercase tracking-wider">
-                Official CBT
+                Assessment
               </span>
             </div>
             <p className="text-[11px] text-slate-500 font-medium truncate">
-              Session ID: <span className="font-mono">{contestId.slice(-8).toUpperCase()}</span> &bull; Computer Based Test
+              Session ID: <span className="font-mono">{contestId.slice(-8).toUpperCase()}</span>
             </p>
           </div>
         </div>
@@ -690,7 +690,7 @@ export default function AttemptPage() {
           {/* Proctor Indicator */}
           <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>AI Proctor Online</span>
+            <span>Proctoring Active</span>
           </div>
 
           <button

@@ -1,10 +1,104 @@
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
+import mongoose from 'mongoose';
+import { logger } from './logger.js';
+
+// Global registry of all instantiated repositories to sync when MongoDB connects
+const repositoryRegistry = new Set();
+
+mongoose.connection.on('connected', async () => {
+  for (const repo of repositoryRegistry) {
+    try {
+      await repo.syncWithMongo();
+    } catch (e) {
+      logger.warn(`Failed to sync ${repo.name} with MongoDB: ${e.message}`);
+    }
+  }
+});
 
 export class BaseRepository {
   constructor(name, mongooseModel = null) {
     this.name = name;
     this.mongooseModel = mongooseModel;
-    this.items = new Map(); // id -> item
+    this.items = new Map(); // id -> item (fast memory cache)
+    this.dataDir = path.resolve(process.cwd(), 'data');
+    this.filePath = path.join(this.dataDir, `${this.name}.json`);
+
+    repositoryRegistry.add(this);
+
+    // 1. Immediately load local persisted file data on startup
+    this.loadFromFile();
+
+    // 2. If MongoDB is already connected, sync immediately
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      this.syncWithMongo().catch(() => {});
+    }
+  }
+
+  loadFromFile() {
+    try {
+      if (!fs.existsSync(this.dataDir)) {
+        fs.mkdirSync(this.dataDir, { recursive: true });
+      }
+      if (fs.existsSync(this.filePath)) {
+        const raw = fs.readFileSync(this.filePath, 'utf-8');
+        if (raw && raw.trim().length > 0) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            for (const item of list) {
+              const id = String(item.id || item._id);
+              if (id) {
+                this.items.set(id, { ...item, id, _id: id });
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.warn(`Could not load local data for ${this.name}: ${err.message}`);
+    }
+  }
+
+  saveToFile() {
+    try {
+      if (!fs.existsSync(this.dataDir)) {
+        fs.mkdirSync(this.dataDir, { recursive: true });
+      }
+      const list = Array.from(this.items.values());
+      fs.writeFileSync(this.filePath, JSON.stringify(list, null, 2), 'utf-8');
+    } catch (err) {
+      logger.warn(`Could not save local data for ${this.name}: ${err.message}`);
+    }
+  }
+
+  async syncWithMongo() {
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) return;
+    try {
+      const col = mongoose.connection.collection(this.name);
+      const docs = await col.find({}).toArray();
+
+      // Load docs from MongoDB into items
+      for (const doc of docs) {
+        const id = String(doc.id || doc._id);
+        if (id) {
+          // If in memory doesn't have it or doc is newer, set it
+          this.items.set(id, { ...doc, id, _id: id });
+        }
+      }
+
+      // If items has records that are not in MongoDB yet, insert them
+      const mongoIds = new Set(docs.map((d) => String(d.id || d._id)));
+      for (const [id, item] of this.items.entries()) {
+        if (!mongoIds.has(id)) {
+          await col.updateOne({ id }, { $set: item }, { upsert: true });
+        }
+      }
+
+      this.saveToFile();
+    } catch (err) {
+      logger.warn(`Error during MongoDB sync for ${this.name}: ${err.message}`);
+    }
   }
 
   async find(query = {}) {
@@ -47,6 +141,18 @@ export class BaseRepository {
       updatedAt: now,
     };
     this.items.set(String(id), item);
+    this.saveToFile();
+
+    // Async persist to MongoDB
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const col = mongoose.connection.collection(this.name);
+        await col.updateOne({ id: String(id) }, { $set: item }, { upsert: true });
+      } catch (err) {
+        logger.warn(`Failed to persist created ${this.name} to MongoDB: ${err.message}`);
+      }
+    }
+
     return { ...item };
   }
 
@@ -62,12 +168,38 @@ export class BaseRepository {
       updatedAt: new Date().toISOString(),
     };
     this.items.set(String(id), updated);
+    this.saveToFile();
+
+    // Async persist to MongoDB
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const col = mongoose.connection.collection(this.name);
+        await col.updateOne({ id: String(id) }, { $set: updated }, { upsert: true });
+      } catch (err) {
+        logger.warn(`Failed to persist updated ${this.name} to MongoDB: ${err.message}`);
+      }
+    }
+
     return { ...updated };
   }
 
   async delete(id) {
     if (!id) return false;
-    return this.items.delete(String(id));
+    const strId = String(id);
+    const deleted = this.items.delete(strId);
+    this.saveToFile();
+
+    // Async persist to MongoDB
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const col = mongoose.connection.collection(this.name);
+        await col.deleteOne({ $or: [{ id: strId }, { _id: strId }] });
+      } catch (err) {
+        logger.warn(`Failed to delete ${this.name} from MongoDB: ${err.message}`);
+      }
+    }
+
+    return deleted;
   }
 
   async count(query = {}) {
@@ -77,5 +209,14 @@ export class BaseRepository {
 
   async clear() {
     this.items.clear();
+    this.saveToFile();
+    if (mongoose.connection && mongoose.connection.readyState === 1) {
+      try {
+        const col = mongoose.connection.collection(this.name);
+        await col.deleteMany({});
+      } catch (err) {
+        logger.warn(`Failed to clear ${this.name} in MongoDB: ${err.message}`);
+      }
+    }
   }
 }

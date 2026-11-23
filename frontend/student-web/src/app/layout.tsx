@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Codeathon — Student Portal',
-  description: 'Competitive programming contest platform for students',
+  title: 'HirePro — Assessment Portal',
+  description: 'Online assessment and coding evaluation platform',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

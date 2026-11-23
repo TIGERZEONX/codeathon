@@ -72,7 +72,7 @@ export const PREDEFINED_SUB_ROLES = [
   },
   {
     name: 'Report Editor',
-    description: 'Views analytics and curates presentation-layer mock figures and exports reports',
+    description: 'Views performance analytics and exports summary reports',
     permissions: [
       'dashboard.view',
       'dashboard.export',

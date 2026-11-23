@@ -73,8 +73,8 @@ export default function AdminLoginPage() {
             <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-[#D3FE4F] rounded-full border-2 border-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Admin Console</h1>
-            <p className="text-xs text-slate-500 mt-1">Codeathon Management &amp; Proctoring Platform</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">HirePro Admin Console</h1>
+            <p className="text-xs text-slate-500 mt-1">Assessment Management &amp; Proctoring Platform</p>
           </div>
         </div>
 
@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
             type="text"
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            placeholder="superadmin@codeathon.dev"
+            placeholder="admin@hirepro.dev"
             autoComplete="username"
             required
           />

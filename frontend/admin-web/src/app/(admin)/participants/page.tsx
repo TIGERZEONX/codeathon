@@ -41,14 +41,14 @@ export default function ParticipantsPage() {
       setErrorMsg(null);
       const trimmedPassword = form.password.trim();
       if (trimmedPassword && trimmedPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters (or leave blank to use default Codeathon@123)');
+        throw new Error('Password must be at least 6 characters (or leave blank to use default Hirepro@123)');
       }
       return participantsApi.create({
         rollNumber: form.rollNumber.trim(),
         name: form.name.trim(),
         email: form.email.trim(),
         department: form.department.trim() || 'Computer Science',
-        password: trimmedPassword || 'Codeathon@123',
+        password: trimmedPassword || 'Hirepro@123',
       });
     },
     onSuccess: () => {
@@ -246,11 +246,11 @@ export default function ParticipantsPage() {
             type="password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder="Min. 6 chars (default: Codeathon@123)"
+            placeholder="Min. 6 chars (default: Hirepro@123)"
             helperText={
               form.password && form.password.trim().length > 0 && form.password.trim().length < 6
                 ? 'Password must be at least 6 characters'
-                : "Leave blank to default to 'Codeathon@123'."
+                : "Leave blank to default to 'Hirepro@123'."
             }
           />
           <div className="flex gap-2.5 justify-end pt-2">

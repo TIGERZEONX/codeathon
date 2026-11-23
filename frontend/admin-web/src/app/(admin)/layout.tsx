@@ -157,7 +157,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-900 tracking-tight text-base">Codeathon</span>
+                <span className="font-bold text-slate-900 tracking-tight text-base">HirePro</span>
                 <span className="w-2 h-2 rounded-full bg-[#D3FE4F]" />
               </div>
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -209,7 +209,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {user?.roleName || (user?.isSuperAdmin ? 'Super Admin' : (user?.role === 'admin' ? 'Admin' : 'Staff'))}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 truncate mt-0.5">{user?.email || 'admin@codeathon.dev'}</p>
+              <p className="text-[10px] text-slate-400 truncate mt-0.5">{user?.email || 'admin@hirepro.dev'}</p>
             </div>
           </div>
           <button

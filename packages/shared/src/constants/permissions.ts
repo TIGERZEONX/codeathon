@@ -187,10 +187,10 @@ export const MODULE_PERMISSIONS: ModulePermissionDefinition[] = [
   },
   {
     module: 'reports',
-    label: 'Report Editor (Mock Layer)',
+    label: 'Report Management',
     permissions: [
       { key: PERMISSIONS.REPORTS_VIEW, label: 'View Reports' },
-      { key: PERMISSIONS.REPORTS_EDIT_MOCK, label: 'Edit Presentation Mock Figures' },
+      { key: PERMISSIONS.REPORTS_EDIT_MOCK, label: 'Adjust Display Figures' },
       { key: PERMISSIONS.REPORTS_EXPORT, label: 'Export Reports' },
     ],
   },

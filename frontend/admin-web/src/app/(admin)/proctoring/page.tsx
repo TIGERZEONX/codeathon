@@ -82,7 +82,7 @@ export default function ProctoringHubPage() {
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            {enabled ? 'Active Lock (AI Monitored)' : 'Standard'}
+            {enabled ? 'Proctoring Active' : 'Standard'}
           </span>
         );
       },

@@ -471,7 +471,7 @@ export default function ContestsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, proctorEnabled: e.target.checked }))}
               />
               <label htmlFor="createProctorEnabled" className="text-xs font-bold text-slate-800 cursor-pointer">
-                Enable Automated Anti-Cheat Security Proctoring
+                Enable Assessment Proctoring
               </label>
             </div>
 
