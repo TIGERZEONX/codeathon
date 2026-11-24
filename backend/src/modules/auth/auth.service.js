@@ -109,10 +109,46 @@ export class AuthService {
       isRevoked: false,
     });
 
+    // Compute role-based landing route & target portal
+    let redirectPath = '/dashboard';
+    let targetPortal = 'admin';
+
+    const r = String(tokenPayload.role || '').toLowerCase();
+    const rId = String(user.roleId || '').toLowerCase();
+    const rName = String(tokenPayload.roleName || '').toLowerCase();
+
+    if (r === 'student' || r === 'candidate' || r === 'participant' || rName.includes('student') || rName.includes('candidate')) {
+      targetPortal = 'student';
+      redirectPath = '/dashboard';
+    } else if (r.includes('proctor') || rId.includes('proctor') || rName.includes('proctor')) {
+      targetPortal = 'admin';
+      redirectPath = '/proctoring';
+    } else if (r.includes('evaluat') || r.includes('review') || rId.includes('evaluat') || rId.includes('review') || rName.includes('evaluat') || rName.includes('review')) {
+      targetPortal = 'admin';
+      redirectPath = '/submissions';
+    } else if (r.includes('attendance') || rId.includes('attendance') || rName.includes('attendance')) {
+      targetPortal = 'admin';
+      redirectPath = '/attendance';
+    } else if (r.includes('report') || rId.includes('report') || rName.includes('report')) {
+      targetPortal = 'admin';
+      redirectPath = '/reports';
+    } else if (r === 'admin' || r.includes('contest') || rId.includes('contest') || rName.includes('contest') || r.includes('question') || rId.includes('question') || rName.includes('question')) {
+      targetPortal = 'admin';
+      redirectPath = '/contests';
+    } else if (isSuper || r === 'super_admin' || rName.includes('super')) {
+      targetPortal = 'admin';
+      redirectPath = '/dashboard';
+    } else {
+      targetPortal = 'admin';
+      redirectPath = '/dashboard';
+    }
+
     return {
       user: tokenPayload,
       accessToken,
       refreshToken,
+      redirectPath,
+      targetPortal,
     };
   }
 

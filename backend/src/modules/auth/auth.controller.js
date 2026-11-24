@@ -14,6 +14,8 @@ export class AuthController {
     return successResponse(res, {
       user: result.user,
       accessToken: result.accessToken,
+      redirectPath: result.redirectPath,
+      targetPortal: result.targetPortal,
     });
   }
 
@@ -27,6 +29,8 @@ export class AuthController {
     return successResponse(res, {
       user: result.user,
       accessToken: result.accessToken,
+      redirectPath: result.redirectPath,
+      targetPortal: result.targetPortal,
     });
   }
 
