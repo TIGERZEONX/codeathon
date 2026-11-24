@@ -29,9 +29,9 @@ export class ExecutionService {
       cpp: 54,
       c: 50,
       java: 62,
-      csharp: 86,
-      cs: 86,
-      'c#': 86,
+      csharp: 51,
+      cs: 51,
+      'c#': 51,
     };
     const languageId = langMap[language.toLowerCase()];
     if (!languageId) return null;

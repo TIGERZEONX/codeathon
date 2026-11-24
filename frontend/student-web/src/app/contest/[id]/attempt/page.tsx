@@ -132,7 +132,7 @@ interface CodeResult {
 const SUPPORTED_LANGUAGES = [
   { id: 71, name: 'Python 3', key: 'python' },
   { id: 62, name: 'Java (OpenJDK 17)', key: 'java' },
-  { id: 86, name: 'C# (.NET Core)', key: 'csharp' },
+  { id: 51, name: 'C# (Mono)', key: 'csharp' },
   { id: 63, name: 'JavaScript (Node.js)', key: 'javascript' },
   { id: 54, name: 'C++ (GCC)', key: 'cpp' },
   { id: 50, name: 'C (GCC)', key: 'c' },
