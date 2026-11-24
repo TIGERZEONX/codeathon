@@ -131,11 +131,21 @@ interface CodeResult {
 
 const SUPPORTED_LANGUAGES = [
   { id: 71, name: 'Python 3', key: 'python' },
+  { id: 62, name: 'Java (OpenJDK 17)', key: 'java' },
+  { id: 86, name: 'C# (.NET Core)', key: 'csharp' },
   { id: 63, name: 'JavaScript (Node.js)', key: 'javascript' },
   { id: 54, name: 'C++ (GCC)', key: 'cpp' },
   { id: 50, name: 'C (GCC)', key: 'c' },
-  { id: 62, name: 'Java', key: 'java' },
 ];
+
+const DEFAULT_STARTER_CODE: Record<string, string> = {
+  python: `# Write your Python solution here\nimport sys\n\ndef main():\n    # lines = sys.stdin.read().splitlines()\n    pass\n\nif __name__ == '__main__':\n    main()\n`,
+  java: `import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your Java solution here\n    }\n}\n`,
+  csharp: `using System;\n\nclass Program {\n    static void Main(string[] args) {\n        // Write your C# solution here\n        // string line = Console.ReadLine();\n    }\n}\n`,
+  javascript: `const fs = require('fs');\nconst input = fs.readFileSync(0, 'utf-8').trim();\n\n// Write your solution here\n`,
+  cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your C++ solution here\n    return 0;\n}\n`,
+  c: `#include <stdio.h>\n\nint main() {\n    // Write your C solution here\n    return 0;\n}\n`,
+};
 
 export default function AttemptPage() {
   const { id: contestId } = useParams<{ id: string }>();
@@ -1045,9 +1055,15 @@ export default function AttemptPage() {
                             key={l.key}
                             type="button"
                             onClick={() => {
+                              const currentCode = currentAnswer?.code;
+                              const isDefaultCode = !currentCode || Object.values(DEFAULT_STARTER_CODE).some((tpl) => tpl.trim() === currentCode.trim());
                               setAnswers((prev) => ({
                                 ...prev,
-                                [qId]: { ...prev[qId], language: l.key },
+                                [qId]: {
+                                  ...prev[qId],
+                                  language: l.key,
+                                  ...(isDefaultCode ? { code: activeQuestion?.codingConfig?.starterCode?.[l.key] || DEFAULT_STARTER_CODE[l.key] || '' } : {}),
+                                },
                               }));
                               setIsLangOpen(false);
                             }}
@@ -1072,7 +1088,8 @@ export default function AttemptPage() {
                     currentAnswer?.code !== undefined
                       ? currentAnswer.code
                       : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
-                        '# Write your solution here\n'
+                        DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
+                        '// Write your solution here\n'
                   }
                   onChange={(e) => {
                     const code = e.target.value;
