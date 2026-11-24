@@ -37,32 +37,55 @@ export class ExecutionService {
     if (!languageId) return null;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeLimitMs + 3000);
+    const timeoutId = setTimeout(() => controller.abort(), timeLimitMs + 5000);
 
     try {
-      const response = await fetch(`${env.JUDGE0_URL}/submissions?wait=true`, {
+      const baseUrl = (env.JUDGE0_URL || '').replace(/\/+$/, '');
+      const isRapidApi = baseUrl.includes('rapidapi.com');
+
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+
+      if (isRapidApi) {
+        try {
+          const u = new URL(baseUrl);
+          headers['x-rapidapi-host'] = u.hostname;
+          headers['x-rapidapi-key'] = env.JUDGE0_AUTH_TOKEN;
+        } catch (e) {}
+      } else if (env.JUDGE0_AUTH_TOKEN) {
+        headers['X-Auth-Token'] = env.JUDGE0_AUTH_TOKEN;
+      }
+
+      const queryParams = new URLSearchParams({
+        base64_encoded: 'false',
+        wait: 'true',
+      });
+
+      const response = await fetch(`${baseUrl}/submissions?${queryParams.toString()}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(env.JUDGE0_AUTH_TOKEN ? { 'X-Auth-Token': env.JUDGE0_AUTH_TOKEN } : {}),
-        },
+        headers,
         body: JSON.stringify({
           source_code: code,
           language_id: languageId,
           stdin: input,
-          cpu_time_limit: timeLimitMs / 1000,
+          cpu_time_limit: Math.max(1, timeLimitMs / 1000),
           memory_limit: memoryLimitMb * 1024,
         }),
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
-      if (!response.ok) return null;
+      if (!response.ok) {
+        logger.warn(`Judge0 returned HTTP ${response.status}`);
+        return null;
+      }
 
       const data = await response.json();
       return this.normalizeJudge0Result(data);
     } catch (err) {
       clearTimeout(timeoutId);
+      logger.warn(`Judge0 execution error: ${err.message}`);
       return null;
     }
   }
