@@ -117,16 +117,54 @@ interface AnswerState {
   language?: string;
 }
 
+interface RunCaseResult {
+  caseNumber: number;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string;
+  stderr?: string;
+  verdict: string;
+  timeMs?: number;
+  passed: boolean;
+}
+
 interface RunResult {
-  results?: { passed: boolean; label?: string; input?: string; expected?: string; actual?: string }[];
+  isCustomInput?: boolean;
+  overallVerdict?: string;
+  verdict?: string;
   error?: string;
+  input?: string;
+  stdout?: string;
+  stderr?: string;
+  passed?: boolean;
+  cases?: RunCaseResult[];
+  totalCases?: number;
+  passedCases?: number;
+  timeMs?: number;
+}
+
+interface SubmitCaseResult {
+  caseNumber: number;
+  isSample?: boolean;
+  isHidden?: boolean;
+  verdict: string;
+  passed: boolean;
+  timeMs?: number;
+  input?: string;
+  expectedOutput?: string;
+  actualOutput?: string;
+  stderr?: string;
 }
 
 interface CodeResult {
+  submissionId?: string;
   verdict: string;
-  passed: number;
-  total: number;
-  score: number;
+  passedCases?: number;
+  totalCases?: number;
+  earnedScore?: number;
+  maxScore?: number;
+  score?: number;
+  cases?: SubmitCaseResult[];
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -177,6 +215,8 @@ export default function AttemptPage() {
   const [submittingCode, setSubmittingCode] = useState(false);
   const [customInput, setCustomInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [activeConsoleTab, setActiveConsoleTab] = useState<'testcases' | 'result'>('testcases');
+  const [selectedCaseIdx, setSelectedCaseIdx] = useState<number>(0);
 
   // Fullscreen & Proctoring State
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -587,6 +627,8 @@ export default function AttemptPage() {
   const navigateToNextQuestion = () => {
     setRunResult(null);
     setSubmitCodeResult(null);
+    setActiveConsoleTab('testcases');
+    setSelectedCaseIdx(0);
     if (activeQuestionIdx < currentQuestions.length - 1) {
       setActiveQuestionIdx((i) => i + 1);
     } else if (activeSectionIdx < sections.length - 1) {
@@ -598,6 +640,8 @@ export default function AttemptPage() {
   const navigateToPrevQuestion = () => {
     setRunResult(null);
     setSubmitCodeResult(null);
+    setActiveConsoleTab('testcases');
+    setSelectedCaseIdx(0);
     if (activeQuestionIdx > 0) {
       setActiveQuestionIdx((i) => i - 1);
     } else if (activeSectionIdx > 0) {
@@ -612,6 +656,9 @@ export default function AttemptPage() {
     if (!qId || !currentAnswer?.code) return;
     setRunningCode(true);
     setRunResult(null);
+    setSubmitCodeResult(null);
+    setActiveConsoleTab('result');
+    setSelectedCaseIdx(0);
     try {
       const res = await contestApi.runCode(contestId, {
         questionId: qId,
@@ -620,8 +667,13 @@ export default function AttemptPage() {
         customInput: showCustomInput ? customInput : undefined,
       });
       setRunResult(res as RunResult);
+      setActiveConsoleTab('result');
     } catch (err: any) {
-      setRunResult({ error: err.response?.data?.error?.message || err.message || 'Execution error' });
+      setRunResult({
+        error: err.response?.data?.error?.message || err.message || 'Execution error',
+        overallVerdict: 'COMPILE_ERROR',
+      });
+      setActiveConsoleTab('result');
     } finally {
       setRunningCode(false);
     }
@@ -632,6 +684,9 @@ export default function AttemptPage() {
     if (!qId || !currentAnswer?.code) return;
     setSubmittingCode(true);
     setSubmitCodeResult(null);
+    setRunResult(null);
+    setActiveConsoleTab('result');
+    setSelectedCaseIdx(0);
     try {
       const res = await contestApi.submitCode(contestId, {
         questionId: qId,
@@ -639,13 +694,15 @@ export default function AttemptPage() {
         language: currentAnswer.language || 'python',
       });
       setSubmitCodeResult(res as CodeResult);
+      setActiveConsoleTab('result');
     } catch (err: any) {
       setSubmitCodeResult({
         verdict: err.response?.data?.error?.message || 'Submission Error',
-        passed: 0,
-        total: 0,
+        passedCases: 0,
+        totalCases: 0,
         score: 0,
       });
+      setActiveConsoleTab('result');
     } finally {
       setSubmittingCode(false);
     }
@@ -929,7 +986,7 @@ export default function AttemptPage() {
                 )}
 
                 {activeQuestion.type === 'coding' && (
-                  <div className="space-y-3 pt-2 text-xs">
+                  <div className="space-y-4 pt-2 text-xs">
                     {activeQuestion.codingConfig?.inputFormat && (
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                         <span className="font-bold text-slate-700 uppercase text-[10px] tracking-wider block">Input Format</span>
@@ -948,6 +1005,64 @@ export default function AttemptPage() {
                       <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
                         <span className="font-bold text-slate-700 uppercase text-[10px] tracking-wider block">Constraints</span>
                         <p className="text-slate-600 font-mono text-[11px] whitespace-pre-wrap">{activeQuestion.codingConfig.constraints}</p>
+                      </div>
+                    )}
+
+                    {/* HackerRank-style Public / Sample Test Cases */}
+                    {activeQuestion.codingConfig?.sampleTestCases && activeQuestion.codingConfig.sampleTestCases.length > 0 && (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center gap-2">
+                          <Terminal className="w-4 h-4 text-[#3760F8]" />
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                            Sample Test Cases (Public)
+                          </h4>
+                        </div>
+
+                        {activeQuestion.codingConfig.sampleTestCases.map((tc, idx) => (
+                          <div key={tc.id || idx} className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50/70 shadow-2xs">
+                            <div className="bg-slate-100/90 px-3.5 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs">
+                              <span className="font-bold text-slate-800">Sample Case {idx}</span>
+                              <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Public Testcase</span>
+                            </div>
+
+                            <div className="p-3.5 space-y-2.5 font-mono">
+                              <div>
+                                <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
+                                  Sample Input {idx}
+                                </span>
+                                <pre className="p-2.5 bg-slate-900 text-slate-100 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed">
+                                  {tc.input}
+                                </pre>
+                              </div>
+
+                              <div>
+                                <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
+                                  Sample Output {idx}
+                                </span>
+                                <pre className="p-2.5 bg-slate-900 text-emerald-400 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed font-semibold">
+                                  {tc.expectedOutput || (tc as any).output}
+                                </pre>
+                              </div>
+
+                              {tc.explanation && (
+                                <div className="font-sans text-[11px] text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed">
+                                  <span className="font-bold text-slate-900">Explanation: </span>
+                                  {tc.explanation}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Fallback Examples block if no sampleTestCases */}
+                    {(!activeQuestion.codingConfig?.sampleTestCases || activeQuestion.codingConfig.sampleTestCases.length === 0) && activeQuestion.codingConfig?.examples && (
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <span className="font-bold text-slate-700 uppercase text-[10px] tracking-wider block">Sample Examples</span>
+                        <pre className="text-slate-800 font-mono text-[11px] whitespace-pre-wrap bg-white p-2.5 rounded-lg border border-slate-200">
+                          {activeQuestion.codingConfig.examples}
+                        </pre>
                       </div>
                     )}
                   </div>
@@ -1104,79 +1219,412 @@ export default function AttemptPage() {
                 />
               </div>
 
-              {/* Run & Submit Action Row */}
-              <div className="p-3 bg-[#1E293B] border-t border-slate-800 flex items-center justify-between gap-2 shrink-0">
-                <button
-                  onClick={() => setShowCustomInput((v) => !v)}
-                  className="text-[11px] text-[#D3FE4F] hover:underline font-semibold"
-                >
-                  {showCustomInput ? 'Hide Stdin' : 'Custom Input'}
-                </button>
+              {/* Action Controls Bar */}
+              <div className="px-4 py-2.5 bg-[#1E293B] border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={showCustomInput}
+                      onChange={(e) => {
+                        setShowCustomInput(e.target.checked);
+                        if (e.target.checked) {
+                          setActiveConsoleTab('testcases');
+                        }
+                      }}
+                      className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-[#3760F8] focus:ring-[#3760F8] cursor-pointer"
+                    />
+                    <span>Custom Input</span>
+                  </label>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7 px-3 bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
+                  <button
+                    type="button"
                     onClick={handleRunCode}
-                    loading={runningCode}
-                    leftIcon={<Terminal className="w-3.5 h-3.5 text-slate-300" />}
+                    disabled={runningCode || submittingCode}
+                    className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    title="Compile and run against sample test cases"
                   >
-                    Run Code
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="text-xs h-7 px-3 bg-[#3760F8] hover:bg-[#254EDB]"
+                    {runningCode ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5 text-[#D3FE4F] fill-[#D3FE4F]" />
+                    )}
+                    <span>{runningCode ? 'Running...' : 'Run Code'}</span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={handleSubmitCode}
-                    loading={submittingCode}
-                    leftIcon={<SendHorizontal className="w-3.5 h-3.5 text-white" />}
+                    disabled={runningCode || submittingCode}
+                    className="flex items-center gap-2 px-4 py-1.5 bg-[#3760F8] hover:bg-[#254EDB] text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                    title="Submit code for full test evaluation"
                   >
-                    Submit Code
-                  </Button>
+                    {submittingCode ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <SendHorizontal className="w-3.5 h-3.5 text-white" />
+                    )}
+                    <span>{submittingCode ? 'Submitting...' : 'Submit Code'}</span>
+                  </button>
                 </div>
               </div>
 
-              {/* Custom Input Panel */}
-              {showCustomInput && (
-                <div className="p-3 bg-slate-800 border-t border-slate-700 space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-slate-400">Custom Stdin:</label>
-                  <textarea
-                    rows={2}
-                    value={customInput}
-                    onChange={(e) => setCustomInput(e.target.value)}
-                    className="w-full font-mono text-xs p-2 rounded bg-slate-900 border border-slate-700 text-white focus:outline-none"
-                    placeholder="Input data..."
-                  />
-                </div>
-              )}
+              {/* ===================== HACKERRANK CONSOLE DRAWER ===================== */}
+              <div className="h-64 sm:h-72 flex flex-col bg-[#0B0F19] border-t border-slate-800 text-xs overflow-hidden">
+                {/* Console Navigation Tabs */}
+                <div className="bg-[#131B2E] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveConsoleTab('testcases')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                        activeConsoleTab === 'testcases'
+                          ? 'bg-slate-800 text-white shadow-2xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Terminal className="w-3.5 h-3.5 text-[#3760F8]" />
+                      <span>Test Cases</span>
+                    </button>
 
-              {/* Output Results */}
-              {(runResult || submitCodeResult) && (
-                <div className="max-h-40 overflow-y-auto p-3 bg-black/90 border-t border-slate-800 text-xs font-mono space-y-1">
-                  {runResult && (
-                    <div>
-                      <span className="text-[#D3FE4F] font-bold">Execution Output:</span>
-                      {runResult.error ? (
-                        <p className="text-rose-400 mt-1 whitespace-pre-wrap">{runResult.error}</p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveConsoleTab('result')}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                        activeConsoleTab === 'result'
+                          ? 'bg-slate-800 text-white shadow-2xs'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Code2 className="w-3.5 h-3.5 text-[#D3FE4F]" />
+                      <span>Code Result</span>
+                      {(runResult || submitCodeResult) && (
+                        <span className={`w-2 h-2 rounded-full ${
+                          (runResult?.overallVerdict === 'PASSED' || submitCodeResult?.verdict === 'PASSED')
+                            ? 'bg-emerald-400'
+                            : 'bg-rose-400'
+                        }`} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Console Tab Content Body */}
+                <div className="flex-1 overflow-y-auto">
+                  {/* TAB 1: TEST CASES & CUSTOM INPUT */}
+                  {activeConsoleTab === 'testcases' && (
+                    <div className="p-3.5 space-y-3 font-mono">
+                      {showCustomInput ? (
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-sans font-bold text-slate-400 uppercase tracking-wider block">
+                            Custom Stdin:
+                          </label>
+                          <textarea
+                            rows={5}
+                            value={customInput}
+                            onChange={(e) => setCustomInput(e.target.value)}
+                            className="w-full font-mono text-xs p-3 rounded-xl bg-slate-900 border border-slate-800 text-slate-100 focus:outline-none focus:border-[#3760F8] resize-none"
+                            placeholder="Type custom standard input to test with..."
+                          />
+                        </div>
                       ) : (
-                        <div className="space-y-1 mt-1">
-                          {(runResult.results || []).map((r, i) => (
-                            <div key={i} className={r.passed ? 'text-emerald-400' : 'text-rose-400'}>
-                              {r.passed ? '✓ Test Case Passed' : '✗ Test Case Failed'}
+                        <div className="space-y-3">
+                          {/* Sample Case Tabs */}
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                            {((activeQuestion?.codingConfig?.sampleTestCases && activeQuestion.codingConfig.sampleTestCases.length > 0)
+                              ? activeQuestion.codingConfig.sampleTestCases
+                              : [{ input: '', expectedOutput: '' }]
+                            ).map((tc, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setSelectedCaseIdx(idx)}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                  selectedCaseIdx === idx
+                                    ? 'bg-[#3760F8] text-white shadow-xs'
+                                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700'
+                                }`}
+                              >
+                                Case {idx}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Selected Case Preview */}
+                          {activeQuestion?.codingConfig?.sampleTestCases && activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx] && (
+                            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
+                              <div>
+                                <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
+                                  Input:
+                                </span>
+                                <pre className="p-2.5 bg-black/70 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800/80">
+                                  {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].input}
+                                </pre>
+                              </div>
+                              <div>
+                                <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
+                                  Expected Output:
+                                </span>
+                                <pre className="p-2.5 bg-black/70 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800/80 font-bold">
+                                  {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].expectedOutput}
+                                </pre>
+                              </div>
                             </div>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {submitCodeResult && (
-                    <div className="pt-1">
-                      <span className="text-[#D3FE4F] font-bold">Verdict: {submitCodeResult.verdict}</span>
-                      <span className="text-emerald-400 ml-2">Score: {submitCodeResult.score} pts</span>
+                  {/* TAB 2: CODE EXECUTION RESULTS & COMPILER MESSAGES */}
+                  {activeConsoleTab === 'result' && (
+                    <div>
+                      {/* Loading State */}
+                      {(runningCode || submittingCode) && (
+                        <div className="py-14 flex flex-col items-center justify-center gap-3 text-slate-400">
+                          <Spinner size="md" />
+                          <span className="text-xs font-semibold font-sans tracking-wide">
+                            {runningCode ? 'Compiling and executing code on Judge0 Cloud...' : 'Grading all test cases against test harness...'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Not Running and Has Results */}
+                      {!runningCode && !submittingCode && (
+                        <div>
+                          {/* Case A: Compilation or General Error */}
+                          {runResult?.error && (
+                            <div className="p-4 space-y-3 font-mono">
+                              <div className="flex items-center gap-2 text-rose-400 bg-rose-950/60 border border-rose-800/80 px-3.5 py-2 rounded-xl font-bold text-xs font-sans">
+                                <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                                <span>
+                                  {runResult.overallVerdict === 'RUNTIME_ERROR' ? 'Runtime Error (NZEC)' : 'Compilation / Syntax Error'}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block">
+                                  Compiler Output &amp; Traceback:
+                                </span>
+                                <pre className="p-3 bg-black/90 text-rose-300 rounded-xl border border-rose-900/40 text-xs overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                                  {runResult.error}
+                                </pre>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Case B: Custom Input Run */}
+                          {!runResult?.error && runResult?.isCustomInput && (
+                            <div className="p-4 space-y-3 font-mono text-xs">
+                              <div className="flex items-center justify-between bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-700 font-sans">
+                                <span className={`font-bold ${runResult.passed ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  Verdict: {runResult.verdict || 'COMPLETED'}
+                                </span>
+                                {runResult.timeMs !== undefined && (
+                                  <span className="text-slate-400 font-mono text-[11px]">{runResult.timeMs} ms</span>
+                                )}
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Input:</span>
+                                <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.input}</pre>
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.stdout || '(No output produced)'}</pre>
+                              </div>
+                              {runResult.stderr && (
+                                <div>
+                                  <span className="text-[10px] font-sans font-bold text-rose-400 uppercase tracking-wider block mb-1">Standard Error:</span>
+                                  <pre className="p-2.5 bg-rose-950/40 text-rose-300 rounded-lg text-[11px] whitespace-pre-wrap border border-rose-900/60">{runResult.stderr}</pre>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Case C: Sample Cases Run Result */}
+                          {!runResult?.error && runResult?.cases && (
+                            <div className="flex flex-col">
+                              {/* Overall Status Bar */}
+                              <div className="p-3 bg-slate-800/70 border-b border-slate-800 flex items-center justify-between">
+                                <div className="flex items-center gap-2 font-sans">
+                                  {runResult.overallVerdict === 'PASSED' ? (
+                                    <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-1 rounded-lg border border-emerald-800">
+                                      <CheckCircle2 className="w-3.5 h-3.5" /> Congratulations!
+                                    </span>
+                                  ) : (
+                                    <span className="flex items-center gap-1.5 text-xs font-bold text-rose-400 bg-rose-950/60 px-2.5 py-1 rounded-lg border border-rose-800">
+                                      <AlertTriangle className="w-3.5 h-3.5" /> Wrong Answer
+                                    </span>
+                                  )}
+                                  <span className="text-xs text-slate-300 font-medium">
+                                    Passed {runResult.passedCases || 0} / {runResult.totalCases || 0} sample test cases
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Case Tabs */}
+                              <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-900/70 border-b border-slate-800 overflow-x-auto">
+                                {runResult.cases.map((c, cIdx) => (
+                                  <button
+                                    key={cIdx}
+                                    type="button"
+                                    onClick={() => setSelectedCaseIdx(cIdx)}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                      selectedCaseIdx === cIdx
+                                        ? 'bg-[#3760F8] text-white shadow-xs'
+                                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                    }`}
+                                  >
+                                    <span>Case {cIdx}</span>
+                                    {c.passed ? (
+                                      <Check className="w-3 h-3 text-emerald-300 stroke-[3]" />
+                                    ) : (
+                                      <X className="w-3 h-3 text-rose-300 stroke-[3]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Selected Case Breakdown */}
+                              {runResult.cases[selectedCaseIdx] && (
+                                <div className="p-3.5 space-y-2.5 text-xs font-mono">
+                                  <div>
+                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
+                                    <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.cases[selectedCaseIdx].input}</pre>
+                                  </div>
+                                  <div>
+                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                    <pre className={`p-2.5 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap border ${runResult.cases[selectedCaseIdx].passed ? 'text-emerald-400 border-emerald-900/40' : 'text-rose-400 border-rose-900/40'}`}>
+                                      {runResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
+                                    </pre>
+                                  </div>
+                                  <div>
+                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
+                                    <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-bold">{runResult.cases[selectedCaseIdx].expectedOutput}</pre>
+                                  </div>
+                                  {runResult.cases[selectedCaseIdx].stderr && (
+                                    <div>
+                                      <span className="font-sans font-bold text-[10px] text-rose-400 uppercase tracking-wider block mb-1">Standard Error:</span>
+                                      <pre className="p-2.5 bg-rose-950/40 text-rose-300 rounded-lg text-[11px] whitespace-pre-wrap border border-rose-900/60">{runResult.cases[selectedCaseIdx].stderr}</pre>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Case D: Submit Code Evaluation Result */}
+                          {submitCodeResult && (
+                            <div className="p-3.5 space-y-3">
+                              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-sans ${
+                                submitCodeResult.verdict === 'PASSED'
+                                  ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200'
+                                  : 'bg-rose-950/60 border-rose-800 text-rose-200'
+                              }`}>
+                                <div className="flex items-center gap-2">
+                                  {submitCodeResult.verdict === 'PASSED' ? (
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                                  ) : (
+                                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                                  )}
+                                  <div>
+                                    <p className="font-bold text-sm">
+                                      {submitCodeResult.verdict === 'PASSED' ? 'Accepted - Full Score' : submitCodeResult.verdict}
+                                    </p>
+                                    <p className="text-[11px] text-slate-300 mt-0.5">
+                                      {submitCodeResult.passedCases ?? 0} of {submitCodeResult.totalCases ?? 0} test cases passed
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="font-mono font-bold text-sm bg-black/40 px-3 py-1 rounded-lg text-[#D3FE4F] border border-slate-700">
+                                    Score: {submitCodeResult.score ?? submitCodeResult.earnedScore ?? 0} / {submitCodeResult.maxScore ?? activeQuestion?.marks ?? 20} pts
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Test Cases Sub-tabs for submission */}
+                              {submitCodeResult.cases && submitCodeResult.cases.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                                    {submitCodeResult.cases.map((c, cIdx) => (
+                                      <button
+                                        key={cIdx}
+                                        type="button"
+                                        onClick={() => setSelectedCaseIdx(cIdx)}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                          selectedCaseIdx === cIdx
+                                            ? 'bg-[#3760F8] text-white shadow-xs'
+                                            : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                        }`}
+                                      >
+                                        <span>Case {cIdx}</span>
+                                        {c.passed ? (
+                                          <Check className="w-3 h-3 text-emerald-300 stroke-[3]" />
+                                        ) : (
+                                          <X className="w-3 h-3 text-rose-300 stroke-[3]" />
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  {submitCodeResult.cases[selectedCaseIdx] && (
+                                    <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2 text-xs font-mono">
+                                      <div className="flex items-center justify-between text-[11px] font-sans">
+                                        <span className="font-bold text-slate-300">
+                                          {submitCodeResult.cases[selectedCaseIdx].isHidden ? 'Hidden Test Case' : 'Sample Test Case'}
+                                        </span>
+                                        <span className={`font-bold ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                          {submitCodeResult.cases[selectedCaseIdx].passed ? 'Passed ✓' : 'Failed ✗'}
+                                        </span>
+                                      </div>
+
+                                      {!submitCodeResult.cases[selectedCaseIdx].isHidden ? (
+                                        <div className="space-y-2 pt-1">
+                                          <div>
+                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
+                                            <pre className="p-2 bg-black/80 text-slate-200 rounded text-[11px] whitespace-pre-wrap">{submitCodeResult.cases[selectedCaseIdx].input}</pre>
+                                          </div>
+                                          <div>
+                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                            <pre className={`p-2 bg-black/80 rounded text-[11px] whitespace-pre-wrap ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                              {submitCodeResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
+                                            </pre>
+                                          </div>
+                                          <div>
+                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
+                                            <pre className="p-2 bg-black/80 text-emerald-400 rounded text-[11px] whitespace-pre-wrap font-bold">{submitCodeResult.cases[selectedCaseIdx].expectedOutput}</pre>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="p-3 bg-slate-900/80 rounded-lg text-slate-400 font-sans text-xs">
+                                          Hidden test cases are evaluated securely on the server to prevent test case tampering.
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Case E: No results yet */}
+                          {!runResult && !submitCodeResult && (
+                            <div className="py-12 text-center text-slate-400 text-xs font-sans">
+                              <Terminal className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                              <p className="font-bold text-slate-300">No execution results yet.</p>
+                              <p className="text-[11px] text-slate-500 mt-1">
+                                Click &quot;Run Code&quot; to test against sample test cases, or &quot;Submit Code&quot; for complete evaluation.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           )}
         </div>

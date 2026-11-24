@@ -459,8 +459,11 @@ export class AttemptsService {
         input: customInput,
         stdout: execResult.stdout,
         stderr: execResult.stderr,
+        error: execResult.stderr || (execResult.verdict !== SUBMISSION_VERDICT.PASSED ? execResult.verdict : undefined),
         verdict: execResult.verdict,
+        overallVerdict: execResult.verdict,
         timeMs: execResult.timeMs,
+        passed: execResult.verdict === SUBMISSION_VERDICT.PASSED,
       };
     }
 
@@ -494,10 +497,20 @@ export class AttemptsService {
     }
 
     const allPassed = caseResults.every((c) => c.passed);
+    const compileErrCase = caseResults.find((c) => c.verdict === SUBMISSION_VERDICT.COMPILE_ERROR);
+    const runtimeErrCase = caseResults.find((c) => c.verdict === SUBMISSION_VERDICT.RUNTIME_ERROR);
+    let overallVerdict = allPassed ? SUBMISSION_VERDICT.PASSED : SUBMISSION_VERDICT.FAILED;
+    if (compileErrCase) {
+      overallVerdict = SUBMISSION_VERDICT.COMPILE_ERROR;
+    } else if (runtimeErrCase) {
+      overallVerdict = SUBMISSION_VERDICT.RUNTIME_ERROR;
+    }
 
     return {
       isCustomInput: false,
-      overallVerdict: allPassed ? SUBMISSION_VERDICT.PASSED : SUBMISSION_VERDICT.FAILED,
+      overallVerdict,
+      verdict: overallVerdict,
+      error: compileErrCase?.stderr || runtimeErrCase?.stderr || undefined,
       cases: caseResults,
       totalCases: caseResults.length,
       passedCases: caseResults.filter((c) => c.passed).length,
@@ -622,6 +635,7 @@ export class AttemptsService {
       totalCases,
       earnedScore,
       maxScore: totalScore,
+      score: earnedScore,
       cases: clientSafeCases,
     };
   }
