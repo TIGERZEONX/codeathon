@@ -30,8 +30,9 @@ export default function LeaderboardPage() {
     refetchInterval: 30000,
   });
 
-  const entries: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || (lbData as LeaderboardEntry[]) || [];
-  const isFrozen = (lbData as { frozen?: boolean })?.frozen;
+  const rawData: any = (lbData as any)?.data || lbData;
+  const entries: LeaderboardEntry[] = rawData?.entries || (Array.isArray(rawData) ? rawData : []);
+  const isFrozen = rawData?.isFrozen || rawData?.frozen;
 
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
@@ -39,11 +40,11 @@ export default function LeaderboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
-            href="/contests"
+            href={`/contests/${contestId}?tab=leaderboard`}
             className="flex items-center gap-1.5 text-xs font-semibold text-[#3760F8] hover:text-[#254EDB] px-3 py-1.5 rounded-lg bg-[#EEF2FF] hover:bg-[#E0E7FF] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Contests</span>
+            <span>Contest Management</span>
           </Link>
           <div>
             <div className="flex items-center gap-2">

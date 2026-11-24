@@ -14,8 +14,8 @@ export type RubricCriteriaType = (typeof RUBRIC_CRITERIA_TYPES)[number];
 
 export const rubricCriterionSchema = z.object({
   id: z.string().optional(),
-  name: z.string().min(2, 'Criterion name is required'),
-  type: z.enum(RUBRIC_CRITERIA_TYPES),
+  name: z.string().min(1, 'Criterion name is required'),
+  type: z.string().optional().default('test_cases_passed_pct'),
   weight: z.number().min(1, 'Weight must be at least 1').max(100),
   description: z.string().optional().default(''),
 });

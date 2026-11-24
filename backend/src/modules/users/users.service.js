@@ -87,12 +87,17 @@ export class UsersService {
   }
 
   async deleteUser(id) {
-    const user = await userRepository.findById(id);
-    if (!user) throw ApiError.notFound('User not found');
-    if (user.role === SYSTEM_ROLES.SUPER_ADMIN) {
+    let user = await userRepository.findById(id);
+    if (!user) {
+      const all = await userRepository.find({});
+      user = all.find((u) => u.id === id || u._id === id || String(u.id) === String(id) || String(u._id) === String(id));
+    }
+    if (!user) throw ApiError.notFound('Staff user not found');
+    if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.email === 'gautham3177@gmail.com') {
       throw ApiError.badRequest('Cannot delete Super Admin account');
     }
-    return userRepository.delete(id);
+    await userRepository.delete(user.id || user._id);
+    return { success: true, message: 'Staff member revoked successfully' };
   }
 }
 

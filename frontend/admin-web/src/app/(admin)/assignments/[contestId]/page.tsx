@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
+import { PillTabs } from '@/components/ui/PillTabs';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -210,11 +211,11 @@ export default function AssignmentsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
           <Link
-            href="/contests"
+            href={`/contests/${contestId}?tab=assignments`}
             className="flex items-center gap-1.5 text-xs font-semibold text-[#3760F8] hover:text-[#254EDB] px-3 py-1.5 rounded-xl bg-[#3760F8]/10 hover:bg-[#3760F8]/15 transition-colors border border-[#3760F8]/20"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Contests</span>
+            <span>Contest Management</span>
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Contest Enrollment Assignments</h1>
@@ -224,21 +225,17 @@ export default function AssignmentsPage() {
           </div>
         </div>
 
-        {/* Enrollment Mode Selector Dropdown */}
-        <div className="flex items-center gap-2 self-stretch sm:self-auto">
-          <div className="relative inline-flex items-center">
-            <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-3 pointer-events-none" />
-            <select
-              value={mode}
-              onChange={(e) => setMode(e.target.value as EnrollmentMode)}
-              className="appearance-none bg-white border border-slate-200 text-slate-800 text-xs font-medium rounded-xl pl-8 pr-9 py-2 shadow-2xs hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/20 cursor-pointer transition-all"
-            >
-              <option value="all">Participation Mode: All (Individuals &amp; Teams)</option>
-              <option value="individual">Participation Mode: Individuals Only</option>
-              <option value="team">Participation Mode: Teams Only</option>
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 pointer-events-none" />
-          </div>
+        {/* Enrollment Mode Selector */}
+        <div className="flex items-center gap-2 self-stretch sm:self-auto overflow-x-auto scrollbar-none">
+          <PillTabs<EnrollmentMode>
+            items={[
+              { id: 'all', label: 'All Modes' },
+              { id: 'individual', label: 'Individuals Only' },
+              { id: 'team', label: 'Teams Only' },
+            ]}
+            activeId={mode}
+            onChange={(m) => setMode(m)}
+          />
         </div>
       </div>
 

@@ -3,7 +3,7 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'HirePro — Assessment Portal',
+  title: 'HACKPRO — Assessment Portal',
   description: 'Online assessment and coding evaluation platform',
 };
 

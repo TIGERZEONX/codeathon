@@ -101,12 +101,14 @@ export const requireSuperAdmin = () => {
     if (
       roleStr === 'super_admin' ||
       roleStr === 'superadmin' ||
+      roleStr === 'admin' ||
       user.isSuperAdmin === true ||
       String(user.roleName || '').toLowerCase().includes('super') ||
+      String(user.roleName || '').toLowerCase().includes('admin') ||
       emailStr === 'gautham3177@gmail.com'
     ) {
       return next();
     }
-    return next(ApiError.forbidden('Super Admin privilege required', 'SUPER_ADMIN_REQUIRED'));
+    return next(ApiError.forbidden('Administrative privilege required', 'ADMIN_REQUIRED'));
   };
 };

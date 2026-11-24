@@ -47,7 +47,6 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/reports', label: 'Reports & Analytics', icon: BarChart3, permission: 'reports.view' },
   { href: '/users', label: 'Staff Users', icon: UserCog, superAdminOnly: true },
   { href: '/roles', label: 'Access Roles', icon: ShieldCheck, superAdminOnly: true },
-  { href: '/audit-logs', label: 'Audit Logs', icon: ScrollText, permission: 'audit_logs.view' },
 ];
 
 const ROUTE_RULES: { prefix: string; permission?: string; superAdminOnly?: boolean }[] = [
@@ -63,7 +62,6 @@ const ROUTE_RULES: { prefix: string; permission?: string; superAdminOnly?: boole
   { prefix: '/submissions', permission: 'submissions.view' },
   { prefix: '/rubrics', permission: 'rubrics.view' },
   { prefix: '/reports', permission: 'reports.view' },
-  { prefix: '/audit-logs', permission: 'audit_logs.view' },
   { prefix: '/dashboard', permission: 'dashboard.view' },
 ];
 
@@ -149,18 +147,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 shadow-xs">
         {/* Brand Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#3760F8] rounded-xl flex items-center justify-center shadow-[0_2px_10px_rgba(55,96,248,0.35)] relative overflow-hidden group">
-              <Code2 className="w-5 h-5 text-white" />
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#D3FE4F] rounded-full border-2 border-[#3760F8]" />
-            </div>
+            <img src="/logo.png" alt="HACKPRO" className="h-9 w-auto max-w-[120px] object-contain rounded" />
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-900 tracking-tight text-base">HirePro</span>
-                <span className="w-2 h-2 rounded-full bg-[#D3FE4F]" />
+                <span className="font-extrabold text-slate-900 tracking-tight text-base">HACKPRO</span>
+                <span className="w-2 h-2 rounded-full bg-[#3760F8]" />
               </div>
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 Admin Console
               </p>
             </div>
@@ -209,7 +204,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   {user?.roleName || (user?.isSuperAdmin ? 'Super Admin' : (user?.role === 'admin' ? 'Admin' : 'Staff'))}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 truncate mt-0.5">{user?.email || 'admin@hirepro.dev'}</p>
+              <p className="text-[10px] text-slate-400 truncate mt-0.5">{user?.email || 'admin@hackpro.dev'}</p>
             </div>
           </div>
           <button

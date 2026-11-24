@@ -111,7 +111,7 @@ export class BaseRepository {
           if (val.$in && !val.$in.includes(item[key])) return false;
           if (val.$ne && item[key] === val.$ne) return false;
           if (val.$regex && !new RegExp(val.$regex, val.$options || 'i').test(item[key])) return false;
-        } else if (item[key] !== val) {
+        } else if (item[key] !== val && String(item[key]) !== String(val)) {
           return false;
         }
       }
@@ -126,7 +126,15 @@ export class BaseRepository {
 
   async findById(id) {
     if (!id) return null;
-    const item = this.items.get(String(id));
+    let item = this.items.get(String(id));
+    if (!item) {
+      for (const val of this.items.values()) {
+        if (String(val.id) === String(id) || String(val._id) === String(id)) {
+          item = val;
+          break;
+        }
+      }
+    }
     return item ? { ...item } : null;
   }
 
@@ -186,14 +194,24 @@ export class BaseRepository {
   async delete(id) {
     if (!id) return false;
     const strId = String(id);
-    const deleted = this.items.delete(strId);
+    let deleted = this.items.delete(strId);
+    for (const [k, v] of this.items.entries()) {
+      if (String(v.id) === strId || String(v._id) === strId) {
+        this.items.delete(k);
+        deleted = true;
+      }
+    }
     this.saveToFile();
 
     // Async persist to MongoDB
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const col = mongoose.connection.collection(this.name);
-        await col.deleteOne({ $or: [{ id: strId }, { _id: strId }] });
+        const queries = [{ id: strId }, { _id: strId }];
+        if (mongoose.Types.ObjectId.isValid(strId)) {
+          queries.push({ _id: new mongoose.Types.ObjectId(strId) });
+        }
+        await col.deleteOne({ $or: queries });
       } catch (err) {
         logger.warn(`Failed to delete ${this.name} from MongoDB: ${err.message}`);
       }

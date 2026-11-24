@@ -182,6 +182,10 @@ export const attendanceApi = {
     const res = await apiClient.get(`/attendance/${contestId}/export`, { responseType: 'blob' });
     return res.data;
   },
+  mark: async (contestId: string, userId: string, status: string) => {
+    const res = await apiClient.post(`/attendance/${contestId}/mark`, { userId, status });
+    return res.data.data;
+  },
 };
 
 export const proctoringApi = {

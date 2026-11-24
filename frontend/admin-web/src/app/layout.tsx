@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'HirePro Admin Console',
-  description: 'HirePro Assessment Management and Proctoring Platform',
+  title: 'HACKPRO Admin Console',
+  description: 'HACKPRO Assessment Management and Proctoring Platform',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

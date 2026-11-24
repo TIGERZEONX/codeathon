@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { participantsApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/apiClient';
@@ -9,7 +9,20 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Badge } from '@/components/ui/Badge';
-import { Plus, UploadCloud, Download, Trash2, Search, User, Network, AlertCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import {
+  Plus,
+  UploadCloud,
+  Download,
+  Trash2,
+  Search,
+  User,
+  Network,
+  AlertCircle,
+  FileSpreadsheet,
+  FileText,
+  CheckCircle,
+} from 'lucide-react';
 
 interface Participant {
   _id: string;
@@ -22,10 +35,13 @@ interface Participant {
 
 export default function ParticipantsPage() {
   const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [csvText, setCsvText] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [parsedPreview, setParsedPreview] = useState<any[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [form, setForm] = useState({ rollNumber: '', name: '', email: '', department: '', password: '' });
@@ -41,14 +57,14 @@ export default function ParticipantsPage() {
       setErrorMsg(null);
       const trimmedPassword = form.password.trim();
       if (trimmedPassword && trimmedPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters (or leave blank to use default Hirepro@123)');
+        throw new Error('Password must be at least 6 characters (or leave blank to use default Hackpro@123)');
       }
       return participantsApi.create({
         rollNumber: form.rollNumber.trim(),
         name: form.name.trim(),
         email: form.email.trim(),
         department: form.department.trim() || 'Computer Science',
-        password: trimmedPassword || 'Hirepro@123',
+        password: trimmedPassword || 'Hackpro@123',
       });
     },
     onSuccess: () => {
@@ -104,7 +120,75 @@ export default function ParticipantsPage() {
   const openImport = () => {
     setErrorMsg(null);
     setCsvText('');
+    setUploadedFileName(null);
+    setParsedPreview([]);
     setShowImport(true);
+  };
+
+  const downloadSampleTemplate = () => {
+    const templateContent = 'rollNumber,name,email,department,password\nCS2026101,John Doe,john.doe@example.com,Computer Science,Hackpro@123\nCS2026102,Jane Smith,jane.smith@example.com,Information Technology,Hackpro@123\nCS2026103,Alex Kumar,alex.kumar@example.com,Electronics,Hackpro@123';
+    const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'hackpro_candidate_import_template.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadedFileName(file.name);
+    setErrorMsg(null);
+
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+    const reader = new FileReader();
+    if (isExcel) {
+      reader.onload = (evt) => {
+        try {
+          const buffer = evt.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const csv = XLSX.utils.sheet_to_csv(worksheet);
+          setCsvText(csv);
+
+          const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+          setParsedPreview(jsonData.slice(0, 5));
+        } catch (err: any) {
+          setErrorMsg('Failed to parse Excel file. Please ensure valid .xlsx or .xls format.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (evt) => {
+        try {
+          const text = evt.target?.result as string;
+          setCsvText(text);
+
+          // Parse preview from CSV text
+          const lines = text.trim().split('\n').filter(Boolean);
+          if (lines.length > 1) {
+            const headers = lines[0].split(',').map((h) => h.trim());
+            const sampleRows = lines.slice(1, 6).map((line) => {
+              const vals = line.split(',').map((v) => v.trim());
+              const rowObj: any = {};
+              headers.forEach((h, i) => {
+                rowObj[h] = vals[i] || '';
+              });
+              return rowObj;
+            });
+            setParsedPreview(sampleRows);
+          }
+        } catch (err) {
+          setErrorMsg('Failed to read CSV file.');
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const columns = [
@@ -246,11 +330,11 @@ export default function ParticipantsPage() {
             type="password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder="Min. 6 chars (default: Hirepro@123)"
+            placeholder="Min. 6 chars (default: Hackpro@123)"
             helperText={
               form.password && form.password.trim().length > 0 && form.password.trim().length < 6
                 ? 'Password must be at least 6 characters'
-                : "Leave blank to default to 'Hirepro@123'."
+                : "Leave blank to default to 'Hackpro@123'."
             }
           />
           <div className="flex gap-2.5 justify-end pt-2">
@@ -270,24 +354,107 @@ export default function ParticipantsPage() {
       </Modal>
 
       {/* Bulk Import Modal */}
-      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Candidates via CSV" size="lg">
-        <div className="space-y-3">
+      <Modal open={showImport} onClose={() => setShowImport(false)} title="Bulk Import Candidates (Excel / CSV)" size="lg">
+        <div className="space-y-4">
           {errorMsg && (
             <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMsg}</span>
             </div>
           )}
-          <p className="text-xs text-slate-600 leading-relaxed">
-            Paste raw CSV data with column headers: <code className="bg-slate-100 text-[#3760F8] px-1.5 py-0.5 rounded font-mono text-xs">rollNumber,name,email,department,password</code>
-          </p>
-          <textarea
-            className="w-full border border-slate-200 rounded-2xl px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none h-48 bg-slate-50/50 leading-relaxed"
-            placeholder={'rollNumber,name,email,department\nCS2026001,Alice Smith,alice@example.com,CSE\nCS2026002,Bob Jones,bob@example.com,ECE'}
-            value={csvText}
-            onChange={(e) => setCsvText(e.target.value)}
+
+          {/* Action Header & Sample Template Download */}
+          <div className="flex items-center justify-between p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl">
+            <div className="text-xs text-slate-600">
+              <span className="font-bold text-slate-800">Supported Formats:</span> .xlsx, .xls, .csv
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={downloadSampleTemplate}
+              leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
+            >
+              Download Sample Template (.csv)
+            </Button>
+          </div>
+
+          {/* File Picker Drag & Drop Box */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
           />
-          <div className="flex gap-2.5 justify-end pt-2">
+
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-slate-200 hover:border-[#3760F8] rounded-2xl p-6 text-center cursor-pointer bg-slate-50/50 hover:bg-[#EEF2FF]/30 transition-all group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-[#EEF2FF] text-[#3760F8] group-hover:bg-[#3760F8] group-hover:text-white flex items-center justify-center mx-auto mb-3 transition-colors shadow-2xs">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-900 group-hover:text-[#3760F8] transition-colors">
+              {uploadedFileName ? uploadedFileName : 'Click to Upload Excel (.xlsx) or CSV File'}
+            </h4>
+            <p className="text-xs text-slate-400 mt-1">
+              {uploadedFileName
+                ? 'File ready for verification and batch enrollment'
+                : 'Or drag and drop your spreadsheet here'}
+            </p>
+          </div>
+
+          {/* Preview of Parsed Rows */}
+          {parsedPreview.length > 0 && (
+            <div className="space-y-2 border border-slate-200 rounded-2xl p-3 bg-white">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                <span className="flex items-center gap-1.5 text-emerald-700">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  Spreadsheet Preview (First {parsedPreview.length} Candidates)
+                </span>
+                <span className="text-slate-400 font-normal">
+                  Total lines: {csvText.trim().split('\n').filter(Boolean).length - 1}
+                </span>
+              </div>
+              <div className="overflow-x-auto max-h-40">
+                <table className="min-w-full divide-y divide-slate-100 text-[11px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 font-semibold">
+                      <th className="px-2.5 py-1.5 text-left">Roll No</th>
+                      <th className="px-2.5 py-1.5 text-left">Name</th>
+                      <th className="px-2.5 py-1.5 text-left">Email</th>
+                      <th className="px-2.5 py-1.5 text-left">Department</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {parsedPreview.map((row, i) => (
+                      <tr key={i} className="hover:bg-slate-50/50">
+                        <td className="px-2.5 py-1 font-mono font-bold text-slate-700">{row.rollNumber || row['Roll Number'] || row['Roll No'] || '—'}</td>
+                        <td className="px-2.5 py-1 font-semibold text-slate-900">{row.name || row['Name'] || row['Student Name'] || '—'}</td>
+                        <td className="px-2.5 py-1 text-slate-600">{row.email || row['Email'] || '—'}</td>
+                        <td className="px-2.5 py-1 text-slate-500">{row.department || row['Department'] || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Collapsible / Optional CSV Raw Edit Area */}
+          <details className="text-xs">
+            <summary className="text-slate-500 hover:text-slate-800 cursor-pointer font-medium select-none">
+              View / Edit Raw CSV Data
+            </summary>
+            <textarea
+              className="mt-2 w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:ring-1 focus:ring-[#3760F8] focus:outline-none h-32 bg-slate-50/50"
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              placeholder="rollNumber,name,email,department,password"
+            />
+          </details>
+
+          <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setShowImport(false)}>
               Cancel
             </Button>
@@ -297,7 +464,7 @@ export default function ParticipantsPage() {
               loading={importMutation.isPending}
               disabled={!csvText.trim()}
             >
-              Import Batch
+              Confirm &amp; Import Batch
             </Button>
           </div>
         </div>

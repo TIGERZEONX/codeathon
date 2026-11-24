@@ -11,58 +11,69 @@ export class RubricEngine {
     }
 
     let finalScore = 0;
+    let totalWeight = 0;
 
     for (const crit of rubric.criteria) {
-      const weight = Number(crit.weight) / 100;
+      const weight = Number(crit.weight) || 0;
+      totalWeight += weight;
       let criterionScore = 0;
 
-      switch (crit.type) {
-        case 'mcq_accuracy':
-          criterionScore = Math.min(100, Math.max(0, metrics.mcqAccuracy || 0));
-          break;
+      const nameLower = (crit.name || '').toLowerCase();
+      const type = crit.type || '';
 
-        case 'test_cases_passed_pct':
-          criterionScore = Math.min(100, Math.max(0, metrics.sampleCasesPassedPct || metrics.testCasesPassedPct || 0));
-          break;
-
-        case 'hidden_test_cases_passed_pct':
-          criterionScore = Math.min(100, Math.max(0, metrics.hiddenCasesPassedPct || 0));
-          break;
-
-        case 'completion_time': {
-          // If finished in less than duration, award points proportional to remaining time
-          const totalDuration = metrics.totalDurationMinutes || 60;
-          const timeTaken = (metrics.completionTimeSeconds || 0) / 60;
-          const ratio = Math.max(0, (totalDuration - timeTaken) / totalDuration);
-          criterionScore = Math.round(ratio * 100);
-          break;
-        }
-
-        case 'attempts_penalty': {
-          // Deduct 5 points per non-passing run attempt beyond 2
-          const wrongAttempts = metrics.wrongAttempts || 0;
-          criterionScore = Math.max(0, 100 - wrongAttempts * 5);
-          break;
-        }
-
-        case 'runtime_efficiency': {
-          // Average runtime < 200ms gets full marks, scales down to 0 at 2000ms
-          const avgRuntimeMs = metrics.avgRuntimeMs || 100;
-          criterionScore = Math.max(0, Math.min(100, Math.round(100 - (avgRuntimeMs / 2000) * 100)));
-          break;
-        }
-
-        case 'code_quality_manual':
-          criterionScore = Math.min(100, Math.max(0, metrics.manualCodeQualityScore || 80));
-          break;
-
-        default:
-          criterionScore = 50;
+      if (
+        type === 'mcq_accuracy' ||
+        nameLower.includes('mcq') ||
+        nameLower.includes('knowledge') ||
+        nameLower.includes('aptitude') ||
+        nameLower.includes('quiz')
+      ) {
+        criterionScore = Math.min(100, Math.max(0, metrics.mcqAccuracy || 0));
+      } else if (
+        type === 'hidden_test_cases_passed_pct' ||
+        nameLower.includes('hidden')
+      ) {
+        criterionScore = Math.min(100, Math.max(0, metrics.hiddenCasesPassedPct ?? metrics.testCasesPassedPct ?? 0));
+      } else if (
+        type === 'test_cases_passed_pct' ||
+        nameLower.includes('test case') ||
+        nameLower.includes('correctness') ||
+        nameLower.includes('logic') ||
+        nameLower.includes('functionality') ||
+        nameLower.includes('coding')
+      ) {
+        criterionScore = Math.min(100, Math.max(0, metrics.testCasesPassedPct ?? metrics.sampleCasesPassedPct ?? 0));
+      } else if (
+        type === 'completion_time' ||
+        nameLower.includes('time') ||
+        nameLower.includes('speed')
+      ) {
+        const totalDuration = metrics.totalDurationMinutes || 60;
+        const timeTaken = (metrics.completionTimeSeconds || 0) / 60;
+        const ratio = Math.max(0.1, (totalDuration - timeTaken) / totalDuration);
+        criterionScore = Math.round(Math.min(100, ratio * 100));
+      } else if (
+        type === 'runtime_efficiency' ||
+        nameLower.includes('efficiency') ||
+        nameLower.includes('performance') ||
+        nameLower.includes('quality') ||
+        nameLower.includes('clean')
+      ) {
+        const passingRate = metrics.testCasesPassedPct || 0;
+        criterionScore = Math.round(passingRate * 0.85 + 15);
+      } else {
+        const passingRate = metrics.testCasesPassedPct || 0;
+        const mcqRate = metrics.mcqAccuracy || 0;
+        criterionScore = Math.round(passingRate * 0.7 + mcqRate * 0.3);
       }
 
-      finalScore += criterionScore * weight;
+      finalScore += (criterionScore * weight) / 100;
     }
 
-    return Math.round(finalScore);
+    if (totalWeight > 0 && Math.abs(totalWeight - 100) > 0.01) {
+      finalScore = finalScore / (totalWeight / 100);
+    }
+
+    return Math.min(100, Math.max(0, Math.round(finalScore)));
   }
 }

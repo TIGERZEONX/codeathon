@@ -21,4 +21,10 @@ router.get(
   asyncHandler((req, res) => attendanceController.exportCsv(req, res))
 );
 
+router.post(
+  '/:contestId/mark',
+  requirePermission(PERMISSIONS.ATTENDANCE_VIEW),
+  asyncHandler((req, res) => attendanceController.markAttendance(req, res))
+);
+
 export default router;

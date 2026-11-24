@@ -13,6 +13,12 @@ export class AttendanceController {
     res.setHeader('Content-Disposition', `attachment; filename="attendance_${req.params.contestId}.csv"`);
     return res.send(csvData);
   }
+
+  async markAttendance(req, res) {
+    const { userId, status } = req.body;
+    const result = await attendanceService.markAttendance(req.params.contestId, userId, status);
+    return successResponse(res, result);
+  }
 }
 
 export const attendanceController = new AttendanceController();

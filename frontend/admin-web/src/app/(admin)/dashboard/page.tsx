@@ -5,6 +5,7 @@ import { analyticsApi, contestsApi } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Select } from '@/components/ui/Select';
 import {
   Users,
   Play,
@@ -136,18 +137,20 @@ export default function DashboardPage() {
           <p className="text-xs text-slate-500 mt-1">Live analytics, cohort metrics, and proctoring telemetry</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            className="border border-slate-200 bg-white rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/30 shadow-2xs"
-            value={selectedContest}
-            onChange={(e) => setSelectedContest(e.target.value)}
-          >
-            <option value="">All Active Contests</option>
-            {contests.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
+          <div className="w-64">
+            <Select
+              selectSize="sm"
+              value={selectedContest}
+              onChange={(e) => setSelectedContest(e.target.value)}
+            >
+              <option value="">All Active Contests</option>
+              {contests.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.title}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Button
             variant="outline"
             size="sm"

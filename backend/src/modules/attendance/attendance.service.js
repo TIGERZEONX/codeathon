@@ -27,25 +27,28 @@ export class AttendanceService {
     const relevantParticipantIds = new Set([...assignedParticipantIds, ...records.map((r) => r.userId)]);
 
     for (const pId of relevantParticipantIds) {
-      const participant = allParticipants.find((p) => p.id === pId);
-      if (!participant) continue;
-
-      const record = records.find((r) => r.userId === pId);
-      const team = participant.teamId ? allTeams.find((t) => t.id === participant.teamId) : null;
+      const participant = allParticipants.find((p) => String(p.id) === String(pId) || String(p._id) === String(pId));
+      const record = records.find((r) => String(r.userId) === String(pId));
+      const team = participant?.teamId ? allTeams.find((t) => String(t.id) === String(participant.teamId)) : null;
 
       roster.push({
         id: record?.id || `att_${pId}`,
-        userId: participant.id,
-        rollNumber: participant.rollNumber,
-        name: participant.name,
-        department: participant.department,
+        _id: record?.id || `att_${pId}`,
+        userId: pId,
+        participantId: pId,
+        participantName: participant?.name || record?.userName || 'Candidate',
+        rollNumber: participant?.rollNumber || record?.rollNumber || '—',
+        name: participant?.name || record?.userName || 'Candidate',
+        department: participant?.department || '—',
         teamId: team?.id || null,
-        teamName: team?.name || 'Individual',
+        teamName: team?.name || undefined,
         status: record?.status || 'absent',
-        loginStatus: record?.loginStatus || 'Not logged in',
+        loginStatus: record?.loginStatus || (record?.status ? 'Logged in' : 'Not logged in'),
         loginTimestamp: record?.loginTimestamp || null,
         testStartTimestamp: record?.testStartTimestamp || null,
         submitTimestamp: record?.submitTimestamp || null,
+        startedAt: record?.testStartTimestamp || null,
+        submittedAt: record?.submitTimestamp || null,
         durationMinutes: record?.durationMinutes || 0,
       });
     }
@@ -104,6 +107,30 @@ export class AttendanceService {
       'submitTimestamp',
       'durationMinutes',
     ]);
+  }
+
+  async markAttendance(contestId, userId, status = 'present') {
+    let existing = await attendanceRepository.findByContestAndUser(contestId, userId);
+    const now = new Date().toISOString();
+    if (existing) {
+      existing.status = status;
+      if (status === 'present' && !existing.testStartTimestamp) {
+        existing.testStartTimestamp = now;
+      } else if (status === 'completed' && !existing.submitTimestamp) {
+        existing.submitTimestamp = now;
+      }
+      return await attendanceRepository.update(existing.id, existing);
+    } else {
+      return await attendanceRepository.create({
+        contestId,
+        userId,
+        status,
+        loginStatus: 'Manual Status Update',
+        testStartTimestamp: status !== 'absent' ? now : null,
+        submitTimestamp: status === 'completed' ? now : null,
+        durationMinutes: 0,
+      });
+    }
   }
 }
 

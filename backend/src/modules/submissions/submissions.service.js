@@ -1,4 +1,6 @@
 import { attemptRepository } from '../attempts/attempts.repository.js';
+import { participantRepository } from '../participants/participants.repository.js';
+import { contestRepository } from '../contests/contests.repository.js';
 import { auditRepository } from '../audit/audit.repository.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ATTEMPT_STATUS } from '@codeathon/shared';
@@ -6,12 +8,43 @@ import { getSocketServer } from '../../sockets/index.js';
 
 export class SubmissionsService {
   async getLockedSubmissions(contestId = null) {
-    const query = { status: ATTEMPT_STATUS.SUBMITTED };
-    if (contestId) query.contestId = contestId;
+    const allAttempts = await attemptRepository.find(contestId ? { contestId } : {});
+    const list = allAttempts.filter(
+      (a) => a.status === ATTEMPT_STATUS.SUBMITTED || a.status === ATTEMPT_STATUS.REVOKED_REOPENED || a.status === 'in_progress'
+    );
+    const allParticipants = await participantRepository.find({});
+    const allContests = await contestRepository.find({});
 
-    const list = await attemptRepository.find(query);
-    list.sort((a, b) => new Date(b.submittedAt || b.updatedAt).getTime() - new Date(a.submittedAt || a.updatedAt).getTime());
-    return list;
+    const enriched = list.map((a) => {
+      const participant = allParticipants.find((p) =>
+        String(p.id) === String(a.userId) ||
+        String(p._id) === String(a.userId) ||
+        p.email === a.userId
+      );
+      const contest = allContests.find((c) =>
+        String(c.id) === String(a.contestId) ||
+        String(c._id) === String(a.contestId)
+      );
+      return {
+        _id: a.id || a._id,
+        id: a.id || a._id,
+        attemptId: a.id || a._id,
+        userId: a.userId,
+        rollNumber: participant?.rollNumber || a.rollNumber || a.userRoll || '—',
+        participantName: participant?.name || participant?.fullName || a.userName || 'Candidate',
+        contestTitle: contest?.title || a.contestTitle || 'Assessment Challenge',
+        contestId: a.contestId,
+        status: a.status,
+        totalScore: a.finalScore ?? a.totalScore ?? 0,
+        finalScore: a.finalScore ?? a.totalScore ?? 0,
+        mcqScore: a.mcqScore ?? 0,
+        codingScore: a.codingScore ?? 0,
+        submittedAt: a.submittedAt || a.updatedAt || a.startedAt,
+      };
+    });
+
+    enriched.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
+    return enriched;
   }
 
   async revokeSubmission(user, { attemptId, reason, extensionMinutes = 0 }) {

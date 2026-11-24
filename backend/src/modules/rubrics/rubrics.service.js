@@ -15,8 +15,9 @@ export class RubricsService {
 
   async createRubric(data) {
     const criteria = (data.criteria || []).map((c) => ({
-      ...c,
       id: c.id || uuidv4(),
+      name: c.name?.trim() || 'Criterion',
+      weight: Number(c.weight) || 0,
     }));
 
     const totalWeight = criteria.reduce((sum, c) => sum + Number(c.weight), 0);
@@ -25,7 +26,8 @@ export class RubricsService {
     }
 
     return rubricRepository.create({
-      ...data,
+      name: data.name?.trim(),
+      description: data.description?.trim() || '',
       criteria,
       isPredefined: false,
     });
@@ -36,9 +38,9 @@ export class RubricsService {
     if (!original) throw ApiError.notFound('Original rubric not found');
 
     return rubricRepository.create({
-      name: newName || `${original.name} (Clone)`,
+      name: newName || `${original.name} (Copy)`,
       description: original.description,
-      criteria: original.criteria.map((c) => ({ ...c, id: uuidv4() })),
+      criteria: (original.criteria || []).map((c) => ({ id: uuidv4(), name: c.name, weight: c.weight })),
       isPredefined: false,
     });
   }
@@ -46,14 +48,12 @@ export class RubricsService {
   async updateRubric(id, updates) {
     const rubric = await rubricRepository.findById(id);
     if (!rubric) throw ApiError.notFound('Rubric not found');
-    if (rubric.isPredefined) {
-      throw ApiError.badRequest('Predefined rubrics are read-only. Please clone them to create a custom variation.');
-    }
 
     if (updates.criteria) {
       const criteria = updates.criteria.map((c) => ({
-        ...c,
         id: c.id || uuidv4(),
+        name: c.name?.trim() || 'Criterion',
+        weight: Number(c.weight) || 0,
       }));
       const totalWeight = criteria.reduce((sum, c) => sum + Number(c.weight), 0);
       if (Math.round(totalWeight) !== 100) {
@@ -68,9 +68,6 @@ export class RubricsService {
   async deleteRubric(id) {
     const rubric = await rubricRepository.findById(id);
     if (!rubric) throw ApiError.notFound('Rubric not found');
-    if (rubric.isPredefined) {
-      throw ApiError.badRequest('Cannot delete predefined system rubrics');
-    }
     return rubricRepository.delete(id);
   }
 }

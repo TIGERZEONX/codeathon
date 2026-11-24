@@ -46,8 +46,8 @@ export default function ResultsPage() {
     );
   }
 
-  const attempt = attemptData as AttemptResult | null;
-  if (!attempt) {
+  const rawAttempt: any = (attemptData as any)?.attempt || attemptData;
+  if (!rawAttempt) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-500 bg-slate-50">
         Results not found.
@@ -55,13 +55,16 @@ export default function ResultsPage() {
     );
   }
 
-  const timeTaken =
-    attempt.submittedAt && attempt.startedAt
-      ? Math.floor(
-          (new Date(attempt.submittedAt).getTime() - new Date(attempt.startedAt).getTime()) /
-            60000
-        )
-      : null;
+  const totalScore = rawAttempt.finalScore ?? rawAttempt.totalScore ?? rawAttempt.score ?? 0;
+  const mcqScore = rawAttempt.mcqScore ?? 0;
+  const codingScore = rawAttempt.codingScore ?? 0;
+  const submittedAt = rawAttempt.submittedAt || rawAttempt.updatedAt;
+  const startedAt = rawAttempt.startedAt;
+  const timeTaken = rawAttempt.completionTimeSeconds
+    ? Math.round(rawAttempt.completionTimeSeconds / 60)
+    : submittedAt && startedAt
+    ? Math.max(1, Math.floor((new Date(submittedAt).getTime() - new Date(startedAt).getTime()) / 60000))
+    : null;
 
   const leaderboard: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || [];
 
@@ -78,8 +81,8 @@ export default function ResultsPage() {
           </button>
           <h1 className="text-base font-bold text-slate-900 tracking-tight">Assessment Evaluation</h1>
         </div>
-        <Badge color={attempt.status === 'graded' ? 'green' : 'primary'} dot>
-          {attempt.status === 'graded' ? 'Graded & Verified' : 'Submitted'}
+        <Badge color={rawAttempt.status === 'graded' || rawAttempt.status === 'submitted' ? 'green' : 'primary'} dot>
+          {rawAttempt.status === 'graded' ? 'Graded & Verified' : 'Submitted'}
         </Badge>
       </header>
 
@@ -92,7 +95,7 @@ export default function ResultsPage() {
           </div>
 
           <div className="text-6xl sm:text-7xl font-extrabold text-[#3760F8] tracking-tight mb-1">
-            {attempt.totalScore ?? '0'}
+            {totalScore}
           </div>
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
             Total Points Earned
@@ -101,11 +104,11 @@ export default function ResultsPage() {
           <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Points</span>
-              <div className="text-xl font-bold text-slate-900 mt-1">{attempt.mcqScore ?? 0}</div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{mcqScore}</div>
             </div>
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Points</span>
-              <div className="text-xl font-bold text-slate-900 mt-1">{attempt.codingScore ?? 0}</div>
+              <div className="text-xl font-bold text-slate-900 mt-1">{codingScore}</div>
             </div>
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
               <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>

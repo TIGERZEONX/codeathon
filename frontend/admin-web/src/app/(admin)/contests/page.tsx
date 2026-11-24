@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import Link from 'next/link';
 import {
@@ -436,21 +437,18 @@ export default function ContestsPage() {
               value={String(form.durationMinutes)}
               onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
             />
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Evaluation Rubric</label>
-              <select
-                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs bg-white text-slate-900 focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none min-h-[44px]"
-                value={form.rubricId}
-                onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
-              >
-                <option value="">Default Standard Evaluation</option>
-                {rubrics.map((r) => (
-                  <option key={r._id} value={r._id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Evaluation Rubric"
+              value={form.rubricId}
+              onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
+            >
+              <option value="">Default Standard Evaluation</option>
+              {rubrics.map((r) => (
+                <option key={r._id} value={r._id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <Input
@@ -617,21 +615,18 @@ export default function ContestsPage() {
               value={String(form.durationMinutes)}
               onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
             />
-            <div>
-              <label className="text-xs font-semibold text-slate-700 block mb-1.5">Evaluation Rubric</label>
-              <select
-                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs bg-white text-slate-900 focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none min-h-[44px]"
-                value={form.rubricId}
-                onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
-              >
-                <option value="">Default Standard Evaluation</option>
-                {rubrics.map((r) => (
-                  <option key={r._id} value={r._id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              label="Evaluation Rubric"
+              value={form.rubricId}
+              onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
+            >
+              <option value="">Default Standard Evaluation</option>
+              {rubrics.map((r) => (
+                <option key={r._id} value={r._id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
           </div>
 
           {errorMsg && (

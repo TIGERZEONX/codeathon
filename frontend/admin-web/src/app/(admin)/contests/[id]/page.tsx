@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sectionsApi, questionsApi, contestsApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/apiClient';
@@ -10,6 +10,10 @@ import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Spinner } from '@/components/ui/Spinner';
+import { ContestAttendanceTab } from '@/components/contest/ContestAttendanceTab';
+import { ContestAssignmentsTab } from '@/components/contest/ContestAssignmentsTab';
+import { ContestLeaderboardTab } from '@/components/contest/ContestLeaderboardTab';
+import { ContestProctoringTab } from '@/components/contest/ContestProctoringTab';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -25,6 +29,7 @@ import {
   UserCheck,
   AlertCircle,
   X,
+  Eye,
 } from 'lucide-react';
 
 interface Section {
@@ -84,6 +89,14 @@ const EMPTY_CODING = {
 
 export default function ContestDetailPage() {
   const { id: contestId } = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'questions';
+
+  const setTab = (tabKey: string) => {
+    router.replace(`/contests/${contestId}?tab=${tabKey}`, { scroll: false });
+  };
+
   const qc = useQueryClient();
 
   const [addSection, setAddSection] = useState(false);
@@ -257,6 +270,14 @@ export default function ContestDetailPage() {
 
   const isLoading = secLoading || qLoading;
 
+  const TABS = [
+    { key: 'questions', label: 'Questions & Sections', icon: Layers },
+    { key: 'assignments', label: 'Assignments', icon: Users },
+    { key: 'attendance', label: 'Live Attendance', icon: UserCheck },
+    { key: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+    { key: 'proctoring', label: 'Proctoring Feed', icon: Eye },
+  ];
+
   return (
     <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
@@ -269,40 +290,60 @@ export default function ContestDetailPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Contests</span>
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Sections'}</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Management'}</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Centralized Hub &bull; Sections, Assignments, Attendance &amp; Rankings</p>
+          </div>
         </div>
 
-        {/* Quick Nav Pills */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link href={`/attendance/${contestId}`}>
-            <Button variant="outline" size="sm" leftIcon={<UserCheck className="w-3.5 h-3.5 text-slate-500" />}>
-              Attendance
-            </Button>
-          </Link>
-          <Link href={`/assignments/${contestId}`}>
-            <Button variant="outline" size="sm" leftIcon={<Users className="w-3.5 h-3.5 text-slate-500" />}>
-              Assignments
-            </Button>
-          </Link>
-          <Link href={`/leaderboard/${contestId}`}>
-            <Button variant="outline" size="sm" leftIcon={<Trophy className="w-3.5 h-3.5 text-slate-500" />}>
-              Leaderboard
-            </Button>
-          </Link>
+        <div className="flex items-center gap-2">
           <Link href={`/reports/${contestId}`}>
             <Button variant="outline" size="sm" leftIcon={<BarChart3 className="w-3.5 h-3.5 text-slate-500" />}>
-              Reports
+              Analytics Report
             </Button>
           </Link>
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
+      {/* Tab Navigation Strip (URL State Preserved) */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2 overflow-x-auto">
+        {TABS.map((t) => {
+          const Icon = t.icon;
+          const isActive = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                isActive
+                  ? 'bg-[#3760F8] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Content Views */}
+      {activeTab === 'assignments' ? (
+        <ContestAssignmentsTab contestId={contestId} />
+      ) : activeTab === 'attendance' ? (
+        <ContestAttendanceTab contestId={contestId} />
+      ) : activeTab === 'leaderboard' ? (
+        <ContestLeaderboardTab contestId={contestId} />
+      ) : activeTab === 'proctoring' ? (
+        <ContestProctoringTab contestId={contestId} />
       ) : (
-        <div className="space-y-5">
+        /* ================== QUESTIONS & SECTIONS TAB ================== */
+        isLoading ? (
+          <div className="flex justify-center py-20">
+            <Spinner size="lg" />
+          </div>
+        ) : (
+          <div className="space-y-5">
           {sections.map((section) => {
             const sectionQuestions = questions.filter((q) => q.sectionId === section._id);
             return (
@@ -400,7 +441,7 @@ export default function ContestDetailPage() {
             <span>Add New Contest Section</span>
           </button>
         </div>
-      )}
+      ))}
 
       {/* Add Section Modal */}
       <Modal open={addSection} onClose={() => setAddSection(false)} title="Add Contest Section" size="sm">

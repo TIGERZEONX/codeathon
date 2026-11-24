@@ -25,7 +25,7 @@ export default function HomePage() {
     <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
       <div className="flex flex-col items-center gap-3">
         <div className="w-10 h-10 rounded-full border-4 border-[#3760F8] border-t-transparent animate-spin" />
-        <p className="text-slate-500 text-sm font-medium">Entering HirePro…</p>
+        <p className="text-slate-500 text-sm font-medium">Entering HACKPRO…</p>
       </div>
     </div>
   );

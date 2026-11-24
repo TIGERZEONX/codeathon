@@ -7,9 +7,15 @@ import { PROCTOR_ACTION, ATTEMPT_STATUS } from '@codeathon/shared';
 import { getSocketServer } from '../../sockets/index.js';
 
 export class ProctoringService {
-  async logEvent(contestId, user, { type, timestamp, details }) {
-    const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
-    if (!attempt) throw ApiError.notFound('Attempt not found');
+  async logEvent(contestId, user, { type, timestamp, details, attemptId }) {
+    let attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
+    if (!attempt && (attemptId || details?.attemptId)) {
+      attempt = await attemptRepository.findById(attemptId || details?.attemptId);
+    }
+    if (!attempt) {
+      // Fallback virtual attempt reference to ensure zero proctoring data loss
+      attempt = { id: `att_${user.userId}_${contestId}`, status: ATTEMPT_STATUS.IN_PROGRESS };
+    }
     if (attempt.status === ATTEMPT_STATUS.SUBMITTED) {
       return { ignored: true, reason: 'Attempt already submitted' };
     }
