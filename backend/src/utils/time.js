@@ -17,7 +17,7 @@ export const calculateAttemptTiming = (startedAt, durationMinutes, contestEndAt,
 };
 
 export const isAttemptActive = (attempt, contest) => {
-  if (!attempt || attempt.status !== 'in_progress') return false;
+  if (!attempt || (attempt.status !== 'in_progress' && attempt.status !== 'revoked_reopened')) return false;
   const timing = calculateAttemptTiming(
     attempt.startedAt,
     contest.durationMinutes,

@@ -50,20 +50,23 @@ export class SubmissionsService {
   async revokeSubmission(user, { attemptId, reason, extensionMinutes = 0 }) {
     const attempt = await attemptRepository.findById(attemptId);
     if (!attempt) throw ApiError.notFound('Attempt not found');
-    if (attempt.status === ATTEMPT_STATUS.REVOKED_REOPENED) {
-      throw ApiError.badRequest('Attempt has already been unlocked and reopened');
-    }
 
-    const addedSeconds = (extensionMinutes || 0) * 60;
-    const currentExtension = attempt.extensionSeconds || 0;
+    const effectiveMinutes = Number(extensionMinutes) > 0 ? Number(extensionMinutes) : 60;
+    const now = new Date();
+    const newStartedAt = now.toISOString();
+    const newEndsAt = new Date(now.getTime() + effectiveMinutes * 60 * 1000).toISOString();
 
     const updated = await attemptRepository.update(attemptId, {
-      status: ATTEMPT_STATUS.REVOKED_REOPENED,
-      extensionSeconds: currentExtension + addedSeconds,
+      status: ATTEMPT_STATUS.IN_PROGRESS,
+      startedAt: newStartedAt,
+      endsAt: newEndsAt,
+      extensionSeconds: effectiveMinutes * 60,
+      submittedAt: null,
+      submissionReason: null,
       revokedBy: user.userId,
       revokedByName: user.name,
       revocationReason: reason,
-      revokedAt: new Date().toISOString(),
+      revokedAt: newStartedAt,
     });
 
     // Write to audit log
