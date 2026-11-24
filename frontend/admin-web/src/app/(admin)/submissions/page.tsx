@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { submissionsApi } from '@/lib/api';
+import { getErrorMessage } from '@/lib/apiClient';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -21,6 +22,7 @@ import {
   ArrowUpDown,
   Search,
   Filter,
+  AlertCircle,
 } from 'lucide-react';
 
 interface Submission {
@@ -47,6 +49,7 @@ export default function SubmissionsPage() {
   const [revokeModal, setRevokeModal] = useState<Submission | null>(null);
   const [reason, setReason] = useState('');
   const [extensionMin, setExtensionMin] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'score_desc' | 'score_asc' | 'date_desc' | 'name_asc'>('score_desc');
@@ -58,19 +61,36 @@ export default function SubmissionsPage() {
   const rawSubmissions: Submission[] = Array.isArray(data) ? data : (data as any)?.data || [];
 
   const revokeMutation = useMutation({
-    mutationFn: () =>
-      submissionsApi.revoke({
-        attemptId: revokeModal!.attemptId,
-        reason,
-        extensionMinutes: extensionMin ? Number(extensionMin) : undefined,
-      }),
+    mutationFn: () => {
+      setErrorMsg(null);
+      const targetAttemptId = revokeModal?.attemptId || revokeModal?._id || revokeModal?.id;
+      if (!targetAttemptId) {
+        throw new Error('Attempt ID not found');
+      }
+      return submissionsApi.revoke({
+        attemptId: targetAttemptId,
+        reason: reason.trim() || 'Administrative unlock',
+        extensionMinutes: extensionMin ? Number(extensionMin) : 0,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['submissions'] });
       setRevokeModal(null);
       setReason('');
       setExtensionMin('');
+      setErrorMsg(null);
+    },
+    onError: (err: any) => {
+      setErrorMsg(getErrorMessage(err, 'Failed to unlock attempt'));
     },
   });
+
+  const openRevoke = (s: Submission) => {
+    setErrorMsg(null);
+    setReason('');
+    setExtensionMin('');
+    setRevokeModal(s);
+  };
 
   // Filtered and Sorted Submissions
   const processedSubmissions = useMemo(() => {
@@ -262,7 +282,7 @@ export default function SubmissionsPage() {
           <Button
             size="sm"
             variant="danger"
-            onClick={() => setRevokeModal(s)}
+            onClick={() => openRevoke(s)}
             leftIcon={<RotateCcw className="w-3 h-3 text-white" />}
           >
             Revoke Lock
@@ -403,6 +423,13 @@ export default function SubmissionsPage() {
             </p>
           </div>
 
+          {errorMsg && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
           <Input
             label="Revocation Justification *"
             value={reason}
@@ -428,9 +455,8 @@ export default function SubmissionsPage() {
               size="sm"
               onClick={() => revokeMutation.mutate()}
               loading={revokeMutation.isPending}
-              disabled={!reason.trim()}
             >
-              Confirm & Unlock Attempt
+              Confirm &amp; Unlock Attempt
             </Button>
           </div>
         </div>

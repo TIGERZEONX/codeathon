@@ -50,8 +50,8 @@ export class SubmissionsService {
   async revokeSubmission(user, { attemptId, reason, extensionMinutes = 0 }) {
     const attempt = await attemptRepository.findById(attemptId);
     if (!attempt) throw ApiError.notFound('Attempt not found');
-    if (attempt.status !== ATTEMPT_STATUS.SUBMITTED) {
-      throw ApiError.badRequest('Can only revoke submitted / locked attempts');
+    if (attempt.status === ATTEMPT_STATUS.REVOKED_REOPENED) {
+      throw ApiError.badRequest('Attempt has already been unlocked and reopened');
     }
 
     const addedSeconds = (extensionMinutes || 0) * 60;
