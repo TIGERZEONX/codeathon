@@ -156,6 +156,7 @@ export class AuthService {
       isSuperAdmin: isSuper,
       permissions: isSuper ? ALL_PERMISSIONS : permissions,
       contestScope: user.contestScope || [],
+      batchCode: matchedBatchContest?.batchCode || user.batchCode || null,
     };
 
     const accessToken = signAccessToken(tokenPayload);
@@ -178,7 +179,7 @@ export class AuthService {
 
     if (r === 'student' || r === 'candidate' || r === 'participant' || rName.includes('student') || rName.includes('candidate')) {
       targetPortal = 'student';
-      redirectPath = matchedBatchContest ? `/contest/${matchedBatchContest.id}` : '/dashboard';
+      redirectPath = '/dashboard';
     } else if (r.includes('proctor') || rId.includes('proctor') || rName.includes('proctor')) {
       targetPortal = 'admin';
       redirectPath = '/proctoring';
@@ -273,6 +274,7 @@ export class AuthService {
       isSuperAdmin: isSuper,
       permissions: isSuper ? ALL_PERMISSIONS : permissions,
       contestScope: user.contestScope || [],
+      batchCode: matchedBatchContest?.batchCode || user.batchCode || null,
     };
 
     const newAccessToken = signAccessToken(tokenPayload);

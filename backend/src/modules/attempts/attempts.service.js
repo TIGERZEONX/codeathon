@@ -52,7 +52,12 @@ export class AttemptsService {
 
     for (const contest of allContests) {
       const isAssigned = await assignmentRepository.isAssigned(contest.id, user.userId, teamId);
-      if (isAssigned || user.isSuperAdmin) {
+      const isBatchMatch = Boolean(
+        user.batchCode &&
+        contest.batchCode &&
+        contest.batchCode.trim().toLowerCase() === String(user.batchCode).trim().toLowerCase()
+      );
+      if (isAssigned || isBatchMatch || user.isSuperAdmin) {
         const attempt = await attemptRepository.findByContestAndUser(contest.id, user.userId);
         
         let attemptStatus = ATTEMPT_STATUS.NOT_STARTED;
@@ -87,7 +92,9 @@ export class AttemptsService {
 
         assignedContests.push({
           id: contest.id,
+          _id: contest.id,
           title: contest.title,
+          batchCode: contest.batchCode,
           description: contest.description,
           instructions: contest.instructions,
           startTime: contest.startTime,
@@ -96,6 +103,8 @@ export class AttemptsService {
           gracePeriodMinutes: contest.gracePeriodMinutes || 0,
           status: contest.status,
           computedStatus,
+          isTurnedOff: contest.isTurnedOff || false,
+          showTotalPointsEarned: contest.showTotalPointsEarned !== false,
           proctorConfig: contest.proctorConfig || {},
           leaderboardConfig: contest.leaderboardConfig || {},
           attempt: attempt
@@ -110,6 +119,11 @@ export class AttemptsService {
             : null,
         });
       }
+    }
+
+    if (user.batchCode) {
+      const clean = String(user.batchCode).trim().toLowerCase();
+      return assignedContests.filter((c) => c.batchCode && c.batchCode.trim().toLowerCase() === clean);
     }
 
     return assignedContests;
@@ -168,6 +182,10 @@ export class AttemptsService {
   async startAttempt(contestId, user) {
     const contest = await contestRepository.findById(contestId);
     if (!contest) throw ApiError.notFound('Contest not found');
+
+    if (contest.isTurnedOff) {
+      throw ApiError.badRequest('This assessment has been turned off by the administrator.', 'CONTEST_OFF');
+    }
 
     const now = Date.now();
     const isLive = contest.status === 'live' || contest.status === CONTEST_STATUS.LIVE;
@@ -280,6 +298,7 @@ export class AttemptsService {
     const questions = await questionRepository.findByContest(contestId);
     const sanitizedQuestions = questions.map((q) => {
       if (q.type === 'mcq') {
+        const rawOpts = q.mcqOptions || q.options || [];
         return {
           id: q.id,
           sectionId: q.sectionId,
@@ -290,7 +309,7 @@ export class AttemptsService {
           negativeMarks: q.negativeMarks,
           order: q.order,
           isMultiSelect: q.isMultiSelect,
-          mcqOptions: (q.mcqOptions || []).map((o) => ({ id: o.id, text: o.text })),
+          mcqOptions: rawOpts.map((o, idx) => ({ id: o.id || String(idx), text: o.text || o.title || '' })),
         };
       }
       const cfg = q.codingConfig || {};
@@ -353,11 +372,13 @@ export class AttemptsService {
     const savedAnswers = await answerRepository.findByAttempt(attempt.id);
 
     return {
+      showTotalPointsEarned: contest.showTotalPointsEarned !== false,
       contest: {
         id: contest.id,
         title: contest.title,
         description: contest.description,
         instructions: contest.instructions,
+        showTotalPointsEarned: contest.showTotalPointsEarned !== false,
         proctorConfig: contest.proctorConfig || {},
         leaderboardConfig: contest.leaderboardConfig || {},
       },

@@ -42,6 +42,14 @@ router.patch(
   asyncHandler((req, res) => contestsController.update(req, res))
 );
 
+router.patch(
+  '/:id/toggle-status',
+  requirePermission(PERMISSIONS.CONTESTS_UPDATE),
+  checkContestScope('id'),
+  logAudit('CONTEST_STATUS_TOGGLED', (req) => ({ contestId: req.params.id, isTurnedOff: req.body.isTurnedOff })),
+  asyncHandler((req, res) => contestsController.toggleStatus(req, res))
+);
+
 router.post(
   '/:id/timing',
   requirePermission(PERMISSIONS.CONTESTS_ADJUST_TIMING),

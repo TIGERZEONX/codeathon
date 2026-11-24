@@ -30,6 +30,8 @@ import {
   AlertCircle,
   X,
   Edit2,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 
 interface Section {
@@ -139,6 +141,7 @@ export default function ContestDetailPage() {
     leaderboardEnabled: true,
     leaderboardAnonymous: false,
     leaderboardTopN: 50,
+    showTotalPointsEarned: true,
   });
 
   const openEditContest = () => {
@@ -162,9 +165,21 @@ export default function ContestDetailPage() {
       leaderboardEnabled: contest.leaderboardConfig?.enabled ?? true,
       leaderboardAnonymous: contest.leaderboardConfig?.displayMode === 'anonymous',
       leaderboardTopN: contest.leaderboardConfig?.topN ?? 50,
+      showTotalPointsEarned: contest.showTotalPointsEarned ?? true,
     });
     setShowEditModal(true);
   };
+
+  const toggleContestMutation = useMutation({
+    mutationFn: (isTurnedOff: boolean) => contestsApi.toggleStatus(contestId, isTurnedOff),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contest', contestId] });
+      qc.invalidateQueries({ queryKey: ['contests'] });
+    },
+    onError: (err: any) => {
+      setErrorMsg(getErrorMessage(err, 'Failed to update contest status'));
+    },
+  });
 
   const updateContestMutation = useMutation({
     mutationFn: async () => {
@@ -200,6 +215,7 @@ export default function ContestDetailPage() {
           topN: Number(editForm.leaderboardTopN) || 50,
           freezeMinutesBeforeEnd: 0,
         },
+        showTotalPointsEarned: editForm.showTotalPointsEarned,
       });
     },
     onSuccess: () => {
@@ -390,6 +406,11 @@ export default function ContestDetailPage() {
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Management'}</h1>
+              {contest?.isTurnedOff ? (
+                <Badge color="red">TURNED OFF</Badge>
+              ) : (
+                contest?.status && <Badge color="blue">{contest.status.toUpperCase()}</Badge>
+              )}
               {contest?.batchCode && (
                 <span className="text-xs font-bold font-mono px-2.5 py-0.5 rounded-md bg-[#EEF2FF] text-[#3760F8] border border-[#C7D2FE]">
                   Batch: {contest.batchCode}
@@ -401,6 +422,16 @@ export default function ContestDetailPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant={contest?.isTurnedOff ? 'primary' : 'outline'}
+            size="sm"
+            className={contest?.isTurnedOff ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold' : 'text-amber-700 hover:bg-amber-50 border-amber-300'}
+            onClick={() => toggleContestMutation.mutate(!contest?.isTurnedOff)}
+            loading={toggleContestMutation.isPending}
+            leftIcon={contest?.isTurnedOff ? <Power className="w-3.5 h-3.5" /> : <PowerOff className="w-3.5 h-3.5" />}
+          >
+            {contest?.isTurnedOff ? 'Turn Contest ON' : 'Turn Contest OFF'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -1030,6 +1061,23 @@ export default function ContestDetailPage() {
                 <span>Anonymize Candidate Names</span>
               </label>
             </div>
+          </div>
+
+          {/* Score & Results Configuration */}
+          <div className="border border-slate-200 rounded-2xl p-4 space-y-2.5 bg-slate-50/50">
+            <p className="text-xs font-bold text-slate-800">Score &amp; Results Configuration</p>
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded cursor-pointer"
+                checked={editForm.showTotalPointsEarned}
+                onChange={(e) => setEditForm((f) => ({ ...f, showTotalPointsEarned: e.target.checked }))}
+              />
+              <span className="font-semibold text-slate-800">Show Total Points Earned to candidate after test submission</span>
+            </label>
+            <p className="text-[11px] text-slate-500 ml-6">
+              When unchecked, candidate results page will confirm submission but conceal points and score details.
+            </p>
           </div>
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">

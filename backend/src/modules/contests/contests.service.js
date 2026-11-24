@@ -20,7 +20,9 @@ export class ContestsService {
     const now = Date.now();
     return list.map((c) => {
       let resolvedStatus = c.status;
-      if (c.status !== CONTEST_STATUS.DRAFT && c.status !== CONTEST_STATUS.ARCHIVED) {
+      if (c.isTurnedOff) {
+        resolvedStatus = CONTEST_STATUS.ENDED;
+      } else if (c.status !== CONTEST_STATUS.DRAFT && c.status !== CONTEST_STATUS.ARCHIVED) {
         const start = new Date(c.startTime).getTime();
         const end = new Date(c.endTime).getTime();
         if (now < start) resolvedStatus = CONTEST_STATUS.SCHEDULED;
@@ -62,6 +64,30 @@ export class ContestsService {
       io.to(`contest:${id}`).emit('contest:settings-changed', {
         contestId: id,
         updates,
+      });
+    }
+
+    return updated;
+  }
+
+  async toggleContestStatus(id, isTurnedOff) {
+    const contest = await contestRepository.findById(id);
+    if (!contest) throw ApiError.notFound('Contest not found');
+
+    const willBeOff = isTurnedOff !== undefined ? Boolean(isTurnedOff) : !contest.isTurnedOff;
+    const newStatus = willBeOff ? CONTEST_STATUS.ENDED : CONTEST_STATUS.LIVE;
+
+    const updated = await contestRepository.update(id, {
+      isTurnedOff: willBeOff,
+      status: newStatus,
+    });
+
+    const io = getSocketServer();
+    if (io) {
+      io.to(`contest:${id}`).emit('contest:status-changed', {
+        contestId: id,
+        isTurnedOff: willBeOff,
+        status: newStatus,
       });
     }
 

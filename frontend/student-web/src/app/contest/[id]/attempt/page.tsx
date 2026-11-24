@@ -785,25 +785,27 @@ export default function AttemptPage() {
           })}
         </div>
 
-        {/* Mobile View Toggle (Question Statement vs Answer Panel) */}
-        <div className="flex md:hidden items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
-          <button
-            onClick={() => setMobileTab('question')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-              mobileTab === 'question' ? 'bg-white text-[#3760F8] shadow-2xs' : 'text-slate-600'
-            }`}
-          >
-            Question
-          </button>
-          <button
-            onClick={() => setMobileTab('answer')}
-            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
-              mobileTab === 'answer' ? 'bg-white text-[#3760F8] shadow-2xs' : 'text-slate-600'
-            }`}
-          >
-            Answer &amp; Code
-          </button>
-        </div>
+        {/* Mobile View Toggle (Only shown for Coding Problems on Mobile) */}
+        {activeQuestion?.type === 'coding' && (
+          <div className="flex md:hidden items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shrink-0">
+            <button
+              onClick={() => setMobileTab('question')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                mobileTab === 'question' ? 'bg-white text-[#3760F8] shadow-2xs' : 'text-slate-600'
+              }`}
+            >
+              Problem
+            </button>
+            <button
+              onClick={() => setMobileTab('answer')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                mobileTab === 'answer' ? 'bg-white text-[#3760F8] shadow-2xs' : 'text-slate-600'
+              }`}
+            >
+              Code Editor
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ===================== STRUCTURED SPLIT WORKSPACE ===================== */}
@@ -851,6 +853,70 @@ export default function AttemptPage() {
                 <div className="p-4 bg-slate-50/80 rounded-2xl border border-slate-200 text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
                   {activeQuestion.statement}
                 </div>
+
+                {/* Mobile-Friendly MCQ Options: Rendered directly on phones so candidates never need to switch tabs to answer */}
+                {activeQuestion.type === 'mcq' && (
+                  <div className="md:hidden pt-2 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Select Answer:
+                      </span>
+                      {currentAnswer?.selectedOptions && currentAnswer.selectedOptions.length > 0 && (
+                        <button
+                          onClick={handleClearResponse}
+                          className="text-xs text-rose-600 hover:text-rose-700 font-semibold"
+                        >
+                          Clear Choice
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {((activeQuestion.mcqOptions && activeQuestion.mcqOptions.length > 0)
+                        ? activeQuestion.mcqOptions
+                        : ((activeQuestion as any).options || [])
+                      ).map((opt: any, oIdx: number) => {
+                        const optKey = opt.id || String(oIdx);
+                        const isSelected = (currentAnswer?.selectedOptions || []).includes(optKey);
+                        const letter = String.fromCharCode(65 + oIdx);
+
+                        return (
+                          <div
+                            key={optKey}
+                            onClick={() => handleSelectOption(optKey)}
+                            className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 cursor-pointer transition-all active:scale-[0.99] ${
+                              isSelected
+                                ? 'border-[#3760F8] bg-[#EEF2FF] shadow-xs'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div
+                              className={`w-7 h-7 rounded-xl border-2 flex items-center justify-center shrink-0 font-bold text-xs ${
+                                isSelected
+                                  ? 'border-[#3760F8] bg-[#3760F8] text-white'
+                                  : 'border-slate-300 bg-slate-50 text-slate-700'
+                              }`}
+                            >
+                              {letter}
+                            </div>
+                            <span
+                              className={`text-xs sm:text-sm flex-1 ${
+                                isSelected ? 'font-bold text-slate-900' : 'font-medium text-slate-700'
+                              }`}
+                            >
+                              {opt.text}
+                            </span>
+                            {isSelected && (
+                              <div className="w-5 h-5 rounded-full bg-[#3760F8] text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {activeQuestion.type === 'coding' && (
                   <div className="space-y-3 pt-2 text-xs">
@@ -905,7 +971,10 @@ export default function AttemptPage() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-3">
-                {(activeQuestion.mcqOptions || []).map((opt, oIdx) => {
+                {((activeQuestion.mcqOptions && activeQuestion.mcqOptions.length > 0)
+                  ? activeQuestion.mcqOptions
+                  : ((activeQuestion as any).options || [])
+                ).map((opt: any, oIdx: number) => {
                   const optKey = opt.id || String(oIdx);
                   const isSelected = (currentAnswer?.selectedOptions || []).includes(optKey);
                   const letter = String.fromCharCode(65 + oIdx);

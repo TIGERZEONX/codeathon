@@ -39,6 +39,10 @@ export const contestsApi = {
     const res = await apiClient.post(`/contests/${id}/duplicate`);
     return res.data.data;
   },
+  toggleStatus: async (id: string, isTurnedOff: boolean) => {
+    const res = await apiClient.patch(`/contests/${id}/toggle-status`, { isTurnedOff });
+    return res.data.data;
+  },
   delete: async (id: string) => {
     await apiClient.delete(`/contests/${id}`);
   },

@@ -20,6 +20,7 @@ export class QuestionsService {
 
   sanitizeForStudent(q) {
     if (q.type === 'mcq') {
+      const rawOpts = q.mcqOptions || q.options || [];
       return {
         id: q.id,
         contestId: q.contestId,
@@ -31,9 +32,9 @@ export class QuestionsService {
         negativeMarks: q.negativeMarks,
         order: q.order,
         isMultiSelect: q.isMultiSelect,
-        mcqOptions: (q.mcqOptions || []).map((opt) => ({
-          id: opt.id,
-          text: opt.text,
+        mcqOptions: rawOpts.map((opt, idx) => ({
+          id: opt.id || String(idx),
+          text: opt.text || opt.title || '',
         })),
       };
     }

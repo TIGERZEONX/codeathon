@@ -68,6 +68,11 @@ export default function ResultsPage() {
 
   const leaderboard: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || [];
 
+  const showTotalPointsEarned =
+    (attemptData as any)?.showTotalPointsEarned ??
+    (attemptData as any)?.contest?.showTotalPointsEarned ??
+    true;
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-2xs">
@@ -94,27 +99,46 @@ export default function ResultsPage() {
             <span>Submission Recorded</span>
           </div>
 
-          <div className="text-6xl sm:text-7xl font-extrabold text-[#3760F8] tracking-tight mb-1">
-            {totalScore}
-          </div>
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
-            Total Points Earned
-          </p>
+          {showTotalPointsEarned ? (
+            <>
+              <div className="text-6xl sm:text-7xl font-extrabold text-[#3760F8] tracking-tight mb-1">
+                {totalScore}
+              </div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
+                Total Points Earned
+              </p>
 
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Points</span>
-              <div className="text-xl font-bold text-slate-900 mt-1">{mcqScore}</div>
+              <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Points</span>
+                  <div className="text-xl font-bold text-slate-900 mt-1">{mcqScore}</div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Points</span>
+                  <div className="text-xl font-bold text-slate-900 mt-1">{codingScore}</div>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>
+                  <div className="text-xl font-bold text-slate-900 mt-1">{timeTaken != null ? `${timeTaken}m` : '—'}</div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="py-6 space-y-3">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Test Completed &amp; Submitted</h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
+                Your answers have been securely recorded. Total points and evaluation scores are hidden by your administrator and will be released after cohort review.
+              </p>
+              {timeTaken != null && (
+                <div className="inline-block bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs text-slate-600 font-semibold mt-2">
+                  Total Duration: <span className="text-slate-900 font-mono">{timeTaken} minutes</span>
+                </div>
+              )}
             </div>
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Points</span>
-              <div className="text-xl font-bold text-slate-900 mt-1">{codingScore}</div>
-            </div>
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>
-              <div className="text-xl font-bold text-slate-900 mt-1">{timeTaken != null ? `${timeTaken}m` : '—'}</div>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* Leaderboard */}

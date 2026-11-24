@@ -39,6 +39,8 @@ export const createContestSchema = z.object({
     CONTEST_STATUS.ARCHIVED,
   ]).default(CONTEST_STATUS.DRAFT),
   rubricId: z.string().optional(),
+  showTotalPointsEarned: z.boolean().default(true),
+  isTurnedOff: z.boolean().default(false),
   shuffleQuestions: z.boolean().default(false),
   shuffleOptions: z.boolean().default(false),
   resultVisibility: z.enum(['immediate', 'after_contest', 'hidden']).default('immediate'),

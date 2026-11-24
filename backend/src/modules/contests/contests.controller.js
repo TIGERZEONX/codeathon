@@ -37,6 +37,12 @@ export class ContestsController {
     return successResponse(res, contest);
   }
 
+  async toggleStatus(req, res) {
+    const { isTurnedOff } = req.body;
+    const result = await contestsService.toggleContestStatus(req.params.id, isTurnedOff);
+    return successResponse(res, result);
+  }
+
   async adjustTiming(req, res) {
     const { extensionMinutes, reason } = req.body;
     const result = await contestsService.adjustTiming(req.params.id, extensionMinutes, reason);

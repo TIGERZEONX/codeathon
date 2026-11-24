@@ -25,6 +25,8 @@ import {
   ShieldAlert,
   ArrowRight,
   AlertCircle,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 
 interface Contest {
@@ -53,6 +55,8 @@ interface Contest {
     displayMode?: string;
     topN?: number;
   };
+  showTotalPointsEarned?: boolean;
+  isTurnedOff?: boolean;
 }
 
 interface Rubric {
@@ -96,6 +100,7 @@ const getDefaultForm = () => {
     leaderboardEnabled: true,
     leaderboardAnonymous: false,
     leaderboardTopN: 50,
+    showTotalPointsEarned: true,
   };
 };
 
@@ -306,6 +311,23 @@ function ContestFormInputs({
           </label>
         </div>
       </div>
+
+      {/* Score & Results Configuration */}
+      <div className="border border-slate-200 rounded-2xl p-4 space-y-2.5 bg-slate-50/50">
+        <p className="text-xs font-bold text-slate-800">Score &amp; Results Configuration</p>
+        <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700">
+          <input
+            type="checkbox"
+            className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded cursor-pointer"
+            checked={form.showTotalPointsEarned}
+            onChange={(e) => setForm((f) => ({ ...f, showTotalPointsEarned: e.target.checked }))}
+          />
+          <span className="font-semibold text-slate-800">Show Total Points Earned to candidate after test submission</span>
+        </label>
+        <p className="text-[11px] text-slate-500 ml-6">
+          When unchecked, candidate results page will confirm submission but conceal points and score details.
+        </p>
+      </div>
     </div>
   );
 }
@@ -383,6 +405,7 @@ export default function ContestsPage() {
           topN: Number(form.leaderboardTopN) || 50,
           freezeMinutesBeforeEnd: 0,
         },
+        showTotalPointsEarned: form.showTotalPointsEarned,
       });
     },
     onSuccess: (newContest: any) => {
@@ -436,6 +459,7 @@ export default function ContestsPage() {
           topN: Number(form.leaderboardTopN) || 50,
           freezeMinutesBeforeEnd: 0,
         },
+        showTotalPointsEarned: form.showTotalPointsEarned,
       });
     },
     onSuccess: () => {
@@ -471,6 +495,14 @@ export default function ContestsPage() {
     },
   });
 
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, isTurnedOff }: { id: string; isTurnedOff: boolean }) =>
+      contestsApi.toggleStatus(id, isTurnedOff),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contests'] });
+    },
+  });
+
   const openCreate = () => {
     setErrorMsg(null);
     setForm(getDefaultForm());
@@ -499,6 +531,7 @@ export default function ContestsPage() {
       leaderboardEnabled: c.leaderboardConfig?.enabled ?? true,
       leaderboardAnonymous: c.leaderboardConfig?.displayMode === 'anonymous',
       leaderboardTopN: c.leaderboardConfig?.topN ?? 50,
+      showTotalPointsEarned: c.showTotalPointsEarned ?? true,
     });
   };
 
@@ -529,9 +562,14 @@ export default function ContestsPage() {
       key: 'status',
       header: 'Status',
       render: (c: Contest) => (
-        <Badge color={statusColor[c.status] || 'gray'}>
-          {c.status.toUpperCase()}
-        </Badge>
+        <div className="flex flex-col gap-1 items-start">
+          <Badge color={c.isTurnedOff ? 'red' : (statusColor[c.status] || 'gray')}>
+            {c.isTurnedOff ? 'TURNED OFF' : c.status.toUpperCase()}
+          </Badge>
+          {!c.showTotalPointsEarned && (
+            <span className="text-[10px] text-slate-500 font-medium">Points Hidden</span>
+          )}
+        </div>
       ),
     },
     {
@@ -570,6 +608,15 @@ export default function ContestsPage() {
               Manage
             </Button>
           </Link>
+          <Button
+            variant={c.isTurnedOff ? 'primary' : 'outline'}
+            size="sm"
+            className={c.isTurnedOff ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-semibold' : 'text-amber-700 hover:bg-amber-50 border-amber-300'}
+            onClick={() => toggleMutation.mutate({ id: c._id, isTurnedOff: !c.isTurnedOff })}
+            leftIcon={c.isTurnedOff ? <Power className="w-3.5 h-3.5" /> : <PowerOff className="w-3.5 h-3.5" />}
+          >
+            {c.isTurnedOff ? 'Turn ON' : 'Turn OFF'}
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(c)} leftIcon={<Edit2 className="w-3.5 h-3.5" />}>
             Edit
           </Button>
