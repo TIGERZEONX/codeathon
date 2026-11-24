@@ -16,6 +16,33 @@ import { ATTEMPT_STATUS, CONTEST_STATUS, SUBMISSION_VERDICT } from '@codeathon/s
 import { getSocketServer } from '../../sockets/index.js';
 
 export class AttemptsService {
+  async joinByBatchCode(batchCode, user) {
+    if (!batchCode || !batchCode.trim()) {
+      throw ApiError.badRequest('Batch code is required');
+    }
+    const clean = batchCode.trim().toLowerCase();
+    const allContests = await contestRepository.find({});
+    const matched = allContests.find(
+      (c) => c.batchCode && c.batchCode.trim().toLowerCase() === clean
+    );
+    if (!matched) {
+      throw ApiError.notFound('Invalid Batch Code. No assessment found for this batch.');
+    }
+    const isAssigned = await assignmentRepository.isAssigned(matched.id, user.userId);
+    if (!isAssigned) {
+      await assignmentRepository.create({
+        contestId: matched.id,
+        participantId: user.userId,
+        assignedAt: new Date().toISOString(),
+      });
+    }
+    return {
+      message: `Successfully joined batch assessment for ${matched.title}`,
+      contestId: matched.id,
+      title: matched.title,
+    };
+  }
+
   async getAssignedContests(user) {
     const participant = await participantRepository.findById(user.userId);
     const teamId = participant?.teamId || null;

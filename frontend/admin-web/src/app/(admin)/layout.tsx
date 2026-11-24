@@ -37,7 +37,6 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
   { href: '/contests', label: 'Contests', icon: Trophy, permission: 'contests.view' },
-  { href: '/proctoring', label: 'Proctoring Monitor', icon: Eye, permission: 'proctoring.view' },
   { href: '/attendance', label: 'Attendance', icon: UserCheck, permission: 'attendance.view' },
   { href: '/participants', label: 'Participants', icon: Users, permission: 'participants.view' },
   { href: '/teams', label: 'Teams', icon: Network, permission: 'team_access.view' },
@@ -54,7 +53,6 @@ const ROUTE_RULES: { prefix: string; permission?: string; superAdminOnly?: boole
   { prefix: '/roles', superAdminOnly: true },
   { prefix: '/contests', permission: 'contests.view' },
   { prefix: '/assignments', permission: 'team_access.view' },
-  { prefix: '/proctoring', permission: 'proctoring.view' },
   { prefix: '/attendance', permission: 'attendance.view' },
   { prefix: '/participants', permission: 'participants.view' },
   { prefix: '/teams', permission: 'team_access.view' },

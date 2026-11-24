@@ -11,6 +11,12 @@ const router = Router();
 
 router.use(authMiddleware);
 
+// Join contest by Batch Code
+router.post(
+  '/join-batch',
+  asyncHandler((req, res) => attemptsController.joinByBatchCode(req, res))
+);
+
 // Get assigned contests for student dashboard
 router.get(
   '/',

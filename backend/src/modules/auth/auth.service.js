@@ -1,6 +1,9 @@
 import { userRepository } from '../users/users.repository.js';
 import { roleRepository } from '../roles/roles.repository.js';
 import { refreshTokenRepository } from './refreshToken.repository.js';
+import { contestRepository } from '../contests/contests.repository.js';
+import { assignmentRepository } from '../assignments/assignments.repository.js';
+import { participantRepository } from '../participants/participants.repository.js';
 import { comparePassword, hashPassword } from '../../utils/password.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -9,16 +12,72 @@ import { v4 as uuidv4 } from 'uuid';
 
 export class AuthService {
   async login(identifier, password) {
-    const user = await userRepository.findByIdentifier(identifier);
+    const rawPass = String(password || '').trim();
+    const cleanId = String(identifier || '').trim();
+
+    // Check if the provided password matches any contest's batchCode
+    const allContests = await contestRepository.find({});
+    const matchedBatchContest = allContests.find(
+      (c) => c.batchCode && c.batchCode.trim().toLowerCase() === rawPass.toLowerCase()
+    );
+
+    let user = await userRepository.findByIdentifier(cleanId);
+
+    // If batchCode matches and user doesn't exist yet, auto-create student user and participant
+    if (matchedBatchContest && !user) {
+      const emailLower = cleanId.toLowerCase();
+      let participant = await participantRepository.findByEmail(emailLower);
+      const namePart = emailLower.split('@')[0].replace(/[._]/g, ' ');
+      const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      const generatedRoll = participant?.rollNumber || ('STU' + Math.floor(100000 + Math.random() * 900000));
+      const hashed = await hashPassword(rawPass);
+
+      user = await userRepository.create({
+        name: participant?.name || formattedName,
+        email: emailLower,
+        rollNumber: generatedRoll,
+        password: hashed,
+        role: SYSTEM_ROLES.STUDENT,
+        roleId: SYSTEM_ROLES.STUDENT,
+        roleName: 'Student',
+        isActive: true,
+      });
+
+      if (!participant) {
+        await participantRepository.create({
+          id: user.id,
+          name: formattedName,
+          email: emailLower,
+          rollNumber: generatedRoll,
+          college: `Batch ${matchedBatchContest.batchCode}`,
+        });
+      }
+    }
+
     if (!user) {
-      throw ApiError.unauthorized('Invalid email/roll number or password', 'INVALID_CREDENTIALS');
+      throw ApiError.unauthorized('Invalid email or batch code / password', 'INVALID_CREDENTIALS');
     }
 
     if (!user.isActive) {
       throw ApiError.forbidden('Your account has been deactivated. Please contact an administrator.', 'ACCOUNT_DEACTIVATED');
     }
 
-    let isMatch = await comparePassword(password, user.password);
+    let isMatch = false;
+
+    // If batchCode matched a contest, authenticate student & assign contest
+    if (matchedBatchContest) {
+      isMatch = true;
+      const isAssigned = await assignmentRepository.isAssigned(matchedBatchContest.id, user.id);
+      if (!isAssigned) {
+        await assignmentRepository.create({
+          contestId: matchedBatchContest.id,
+          participantId: user.id,
+          assignedAt: new Date().toISOString(),
+        });
+      }
+    } else {
+      isMatch = await comparePassword(password, user.password);
+    }
 
     // Fallback tolerance for common seeded/demo admin credentials
     if (!isMatch) {
@@ -119,7 +178,7 @@ export class AuthService {
 
     if (r === 'student' || r === 'candidate' || r === 'participant' || rName.includes('student') || rName.includes('candidate')) {
       targetPortal = 'student';
-      redirectPath = '/dashboard';
+      redirectPath = matchedBatchContest ? `/contest/${matchedBatchContest.id}` : '/dashboard';
     } else if (r.includes('proctor') || rId.includes('proctor') || rName.includes('proctor')) {
       targetPortal = 'admin';
       redirectPath = '/proctoring';

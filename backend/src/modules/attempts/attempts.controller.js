@@ -2,6 +2,12 @@ import { attemptsService } from './attempts.service.js';
 import { successResponse } from '../../utils/response.js';
 
 export class AttemptsController {
+  async joinByBatchCode(req, res) {
+    const { batchCode } = req.body;
+    const result = await attemptsService.joinByBatchCode(batchCode, req.user);
+    return successResponse(res, result);
+  }
+
   async getAssignedContests(req, res) {
     const list = await attemptsService.getAssignedContests(req.user);
     return successResponse(res, list);

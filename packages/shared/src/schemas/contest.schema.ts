@@ -26,6 +26,7 @@ export const createContestSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
   description: z.string().optional().default(''),
   instructions: z.string().optional().default(''),
+  batchCode: z.string().optional().default(''),
   startTime: z.string().datetime({ message: 'Invalid start time' }),
   endTime: z.string().datetime({ message: 'Invalid end time' }),
   durationMinutes: z.number().int().min(5, 'Duration must be at least 5 minutes'),

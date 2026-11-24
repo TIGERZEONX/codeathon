@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { contestApi, authApi } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
@@ -82,10 +82,31 @@ function AttemptBadge({ status }: { status?: string }) {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { user, clearAuth, isAuthenticated, initAuth } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(false);
+  const [batchCodeInput, setBatchCodeInput] = useState('');
+  const [batchMsg, setBatchMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
+
+  const handleJoinBatch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchCodeInput.trim()) return;
+    setIsJoining(true);
+    setBatchMsg(null);
+    try {
+      const res = await contestApi.joinBatch(batchCodeInput.trim());
+      setBatchMsg({ type: 'success', text: res.message || 'Successfully joined assessment!' });
+      setBatchCodeInput('');
+      qc.invalidateQueries({ queryKey: ['assigned-contests'] });
+    } catch (err: any) {
+      setBatchMsg({ type: 'error', text: err?.response?.data?.message || 'Invalid batch code.' });
+    } finally {
+      setIsJoining(false);
+    }
+  };
 
   useEffect(() => {
     initAuth();
@@ -302,17 +323,48 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search assessments..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/30 focus:border-[#3760F8] transition-all"
-                  />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <form onSubmit={handleJoinBatch} className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Enter Batch Code"
+                      value={batchCodeInput}
+                      onChange={(e) => setBatchCodeInput(e.target.value)}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 uppercase font-mono placeholder:normal-case placeholder:font-sans placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/30 focus:border-[#3760F8] transition-all w-36 sm:w-40"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isJoining || !batchCodeInput.trim()}
+                      className="px-3 py-2 rounded-xl bg-[#3760F8] hover:bg-[#284fd9] text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      {isJoining ? '...' : 'Join'}
+                    </button>
+                  </form>
+
+                  <div className="relative w-full sm:w-56">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search assessments..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/30 focus:border-[#3760F8] transition-all"
+                    />
+                  </div>
                 </div>
               </div>
+
+              {batchMsg && (
+                <div
+                  className={`p-2.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                    batchMsg.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                  }`}
+                >
+                  <span>{batchMsg.text}</span>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 border-t border-slate-100 pt-4 overflow-x-auto">
                 <button

@@ -29,14 +29,30 @@ import {
 
 interface Contest {
   _id: string;
+  id?: string;
   title: string;
+  batchCode?: string;
   status: string;
   startTime: string;
   endTime: string;
   durationMinutes: number;
   totalMarks?: number;
   rubricId?: string;
-  proctorConfig?: { enabled?: boolean };
+  description?: string;
+  instructions?: string;
+  proctorConfig?: {
+    enabled?: boolean;
+    detectTabSwitch?: boolean;
+    blockCopyPaste?: boolean;
+    enforceFullscreen?: boolean;
+    blockRightClick?: boolean;
+    maxViolations?: number;
+  };
+  leaderboardConfig?: {
+    enabled?: boolean;
+    displayMode?: string;
+    topN?: number;
+  };
 }
 
 interface Rubric {
@@ -63,6 +79,7 @@ const getDefaultForm = () => {
 
   return {
     title: '',
+    batchCode: '',
     startTime: formatLocal(now),
     endTime: formatLocal(later),
     durationMinutes: 180,
@@ -111,6 +128,188 @@ const safeToIso = (val: string | undefined, fallback: Date): string => {
   return fallback.toISOString();
 };
 
+function ContestFormInputs({
+  form,
+  setForm,
+  rubrics,
+  idPrefix = 'form',
+}: {
+  form: ReturnType<typeof getDefaultForm>;
+  setForm: React.Dispatch<React.SetStateAction<ReturnType<typeof getDefaultForm>>>;
+  rubrics: Rubric[];
+  idPrefix?: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <Input
+        label="Contest Title *"
+        placeholder="e.g. National Coding Olympiad 2026 - Round 1"
+        value={form.title}
+        onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+        required
+      />
+
+      <div>
+        <Input
+          label="Batch Code *"
+          placeholder="e.g. BATCH2026 or AIML-A"
+          value={form.batchCode}
+          onChange={(e) => setForm((f) => ({ ...f, batchCode: e.target.value.toUpperCase() }))}
+        />
+        <p className="mt-1 text-[11px] text-slate-500 font-medium">
+          Students will enter this batch code along with their email to attend the test.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Input
+          label="Start Window *"
+          type="datetime-local"
+          value={form.startTime}
+          onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+        />
+        <Input
+          label="End Window *"
+          type="datetime-local"
+          value={form.endTime}
+          onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Input
+          label="Duration (Minutes) *"
+          type="number"
+          min="5"
+          value={String(form.durationMinutes)}
+          onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
+        />
+        <Select
+          label="Evaluation Rubric"
+          value={form.rubricId}
+          onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
+        >
+          <option value="">Default Standard Evaluation</option>
+          {rubrics.map((r) => (
+            <option key={r._id} value={r._id}>
+              {r.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+
+      <Input
+        label="Description (Optional)"
+        placeholder="Brief overview or eligibility criteria"
+        value={form.description}
+        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+      />
+
+      <Input
+        label="Instructions for Candidates (Optional)"
+        placeholder="e.g. All questions are mandatory. Ensure fullscreen mode."
+        value={form.instructions}
+        onChange={(e) => setForm((f) => ({ ...f, instructions: e.target.value }))}
+      />
+
+      {/* Security Proctoring Section */}
+      <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
+        <div className="flex items-center gap-2.5">
+          <input
+            type="checkbox"
+            id={`${idPrefix}_proctorEnabled`}
+            className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded cursor-pointer"
+            checked={form.proctorEnabled}
+            onChange={(e) => setForm((f) => ({ ...f, proctorEnabled: e.target.checked }))}
+          />
+          <label htmlFor={`${idPrefix}_proctorEnabled`} className="text-xs font-bold text-slate-800 cursor-pointer">
+            Enable Assessment Proctoring
+          </label>
+        </div>
+
+        {form.proctorEnabled && (
+          <div className="ml-6 space-y-2.5 text-xs text-slate-700 pt-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={form.detectTabSwitch}
+                  onChange={(e) => setForm((f) => ({ ...f, detectTabSwitch: e.target.checked }))}
+                />
+                <span>Detect Tab Switches</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={form.blockCopyPaste}
+                  onChange={(e) => setForm((f) => ({ ...f, blockCopyPaste: e.target.checked }))}
+                />
+                <span>Block Copy &amp; Paste</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={form.enforceFullscreen}
+                  onChange={(e) => setForm((f) => ({ ...f, enforceFullscreen: e.target.checked }))}
+                />
+                <span>Enforce Fullscreen Mode</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={form.blockRightClick}
+                  onChange={(e) => setForm((f) => ({ ...f, blockRightClick: e.target.checked }))}
+                />
+                <span>Block Right Click &amp; Inspect</span>
+              </label>
+            </div>
+
+            <div className="pt-2 max-w-xs">
+              <Input
+                label="Max Violation Limit Before Flag"
+                type="number"
+                min="1"
+                max="50"
+                value={String(form.maxViolations)}
+                onChange={(e) => setForm((f) => ({ ...f, maxViolations: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Leaderboard Settings */}
+      <div className="border border-slate-200 rounded-2xl p-4 space-y-2.5 bg-slate-50/50">
+        <p className="text-xs font-bold text-slate-800">Leaderboard Configuration</p>
+        <div className="flex flex-wrap gap-4 text-xs text-slate-700">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#3760F8]"
+              checked={form.leaderboardEnabled}
+              onChange={(e) => setForm((f) => ({ ...f, leaderboardEnabled: e.target.checked }))}
+            />
+            <span>Visible to Candidates</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="accent-[#3760F8]"
+              checked={form.leaderboardAnonymous}
+              onChange={(e) => setForm((f) => ({ ...f, leaderboardAnonymous: e.target.checked }))}
+            />
+            <span>Anonymize Candidate Names</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ContestsPage() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -158,6 +357,7 @@ export default function ContestsPage() {
 
       return contestsApi.create({
         title: form.title.trim(),
+        batchCode: form.batchCode?.trim() || undefined,
         description: form.description.trim() || undefined,
         instructions: form.instructions.trim() || undefined,
         startTime: startIso,
@@ -210,11 +410,32 @@ export default function ContestsPage() {
 
       return contestsApi.update(id, {
         title: form.title.trim(),
+        batchCode: form.batchCode?.trim() || undefined,
         description: form.description.trim() || undefined,
+        instructions: form.instructions.trim() || undefined,
         startTime: startIso,
         endTime: endIso,
         durationMinutes: Number(form.durationMinutes) || 60,
         rubricId: form.rubricId || undefined,
+        proctorConfig: {
+          enabled: form.proctorEnabled,
+          detectTabSwitch: form.detectTabSwitch,
+          detectWindowBlur: true,
+          blockCopyPaste: form.blockCopyPaste,
+          blockRightClick: form.blockRightClick,
+          enforceFullscreen: form.enforceFullscreen,
+          blockDevTools: true,
+          blockPrintScreen: true,
+          blockTextSelection: true,
+          maxViolations: Number(form.maxViolations) || 5,
+          violationAction: 'warn',
+        },
+        leaderboardConfig: {
+          enabled: form.leaderboardEnabled,
+          displayMode: form.leaderboardAnonymous ? 'anonymous' : 'with_names',
+          topN: Number(form.leaderboardTopN) || 50,
+          freezeMinutesBeforeEnd: 0,
+        },
       });
     },
     onSuccess: () => {
@@ -262,10 +483,22 @@ export default function ContestsPage() {
     setForm({
       ...getDefaultForm(),
       title: c.title,
+      batchCode: c.batchCode || '',
       startTime: c.startTime?.slice(0, 16) || '',
       endTime: c.endTime?.slice(0, 16) || '',
-      durationMinutes: c.durationMinutes,
+      durationMinutes: c.durationMinutes || 60,
       rubricId: c.rubricId || '',
+      description: c.description || '',
+      instructions: c.instructions || '',
+      proctorEnabled: c.proctorConfig?.enabled ?? true,
+      detectTabSwitch: c.proctorConfig?.detectTabSwitch ?? true,
+      blockCopyPaste: c.proctorConfig?.blockCopyPaste ?? true,
+      enforceFullscreen: c.proctorConfig?.enforceFullscreen ?? true,
+      blockRightClick: c.proctorConfig?.blockRightClick ?? true,
+      maxViolations: c.proctorConfig?.maxViolations ?? 5,
+      leaderboardEnabled: c.leaderboardConfig?.enabled ?? true,
+      leaderboardAnonymous: c.leaderboardConfig?.displayMode === 'anonymous',
+      leaderboardTopN: c.leaderboardConfig?.topN ?? 50,
     });
   };
 
@@ -281,7 +514,14 @@ export default function ContestsPage() {
           >
             {c.title}
           </Link>
-          <span className="text-[11px] text-slate-400 font-mono">ID: {c._id.slice(-6)}</span>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[11px] text-slate-400 font-mono">ID: {c._id.slice(-6)}</span>
+            {c.batchCode && (
+              <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-md bg-[#EEF2FF] text-[#3760F8] border border-[#C7D2FE]">
+                Batch: {c.batchCode}
+              </span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -406,159 +646,7 @@ export default function ContestsPage() {
             </div>
           )}
 
-          <Input
-            label="Contest Title *"
-            placeholder="e.g. National Coding Olympiad 2026 - Round 1"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            required
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Start Window *"
-              type="datetime-local"
-              value={form.startTime}
-              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-            />
-            <Input
-              label="End Window *"
-              type="datetime-local"
-              value={form.endTime}
-              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Duration (Minutes) *"
-              type="number"
-              min="5"
-              value={String(form.durationMinutes)}
-              onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
-            />
-            <Select
-              label="Evaluation Rubric"
-              value={form.rubricId}
-              onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
-            >
-              <option value="">Default Standard Evaluation</option>
-              {rubrics.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          <Input
-            label="Description (Optional)"
-            placeholder="Brief overview or eligibility criteria"
-            value={form.description}
-            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          />
-
-          {/* Security Proctoring Section */}
-          <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
-            <div className="flex items-center gap-2.5">
-              <input
-                type="checkbox"
-                id="createProctorEnabled"
-                className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded"
-                checked={form.proctorEnabled}
-                onChange={(e) => setForm((f) => ({ ...f, proctorEnabled: e.target.checked }))}
-              />
-              <label htmlFor="createProctorEnabled" className="text-xs font-bold text-slate-800 cursor-pointer">
-                Enable Assessment Proctoring
-              </label>
-            </div>
-
-            {form.proctorEnabled && (
-              <div className="ml-6 space-y-2.5 text-xs text-slate-700 pt-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="accent-[#3760F8]"
-                      checked={form.detectTabSwitch}
-                      onChange={(e) => setForm((f) => ({ ...f, detectTabSwitch: e.target.checked }))}
-                    />
-                    <span>Detect Tab Switches</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="accent-[#3760F8]"
-                      checked={form.blockCopyPaste}
-                      onChange={(e) => setForm((f) => ({ ...f, blockCopyPaste: e.target.checked }))}
-                    />
-                    <span>Block Copy &amp; Paste</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="accent-[#3760F8]"
-                      checked={form.enforceFullscreen}
-                      onChange={(e) => setForm((f) => ({ ...f, enforceFullscreen: e.target.checked }))}
-                    />
-                    <span>Enforce Fullscreen Mode</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="accent-[#3760F8]"
-                      checked={form.blockRightClick}
-                      onChange={(e) => setForm((f) => ({ ...f, blockRightClick: e.target.checked }))}
-                    />
-                    <span>Block Right Click &amp; Inspect</span>
-                  </label>
-                </div>
-
-                <div className="pt-2 max-w-xs">
-                  <Input
-                    label="Max Violation Limit Before Flag"
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={String(form.maxViolations)}
-                    onChange={(e) => setForm((f) => ({ ...f, maxViolations: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Leaderboard Settings */}
-          <div className="border border-slate-200 rounded-2xl p-4 space-y-2.5 bg-slate-50/50">
-            <p className="text-xs font-bold text-slate-800">Leaderboard Configuration</p>
-            <div className="flex flex-wrap gap-4 text-xs text-slate-700">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="accent-[#3760F8]"
-                  checked={form.leaderboardEnabled}
-                  onChange={(e) => setForm((f) => ({ ...f, leaderboardEnabled: e.target.checked }))}
-                />
-                <span>Visible to Candidates</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="accent-[#3760F8]"
-                  checked={form.leaderboardAnonymous}
-                  onChange={(e) => setForm((f) => ({ ...f, leaderboardAnonymous: e.target.checked }))}
-                />
-                <span>Anonymize Candidate Names</span>
-              </label>
-            </div>
-          </div>
-
-          {errorMsg && (
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+          <ContestFormInputs form={form} setForm={setForm} rubrics={rubrics} idPrefix="create" />
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
@@ -585,56 +673,7 @@ export default function ContestsPage() {
             </div>
           )}
 
-          <Input
-            label="Contest Title *"
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            required
-          />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Start Window"
-              type="datetime-local"
-              value={form.startTime}
-              onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-            />
-            <Input
-              label="End Window"
-              type="datetime-local"
-              value={form.endTime}
-              onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Duration (Minutes)"
-              type="number"
-              min="5"
-              value={String(form.durationMinutes)}
-              onChange={(e) => setForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
-            />
-            <Select
-              label="Evaluation Rubric"
-              value={form.rubricId}
-              onChange={(e) => setForm((f) => ({ ...f, rubricId: e.target.value }))}
-            >
-              <option value="">Default Standard Evaluation</option>
-              {rubrics.map((r) => (
-                <option key={r._id} value={r._id}>
-                  {r.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-
-          {errorMsg && (
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
+          <ContestFormInputs form={form} setForm={setForm} rubrics={rubrics} idPrefix="edit" />
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
             <Button variant="outline" size="sm" onClick={() => setEditContest(null)}>

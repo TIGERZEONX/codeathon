@@ -32,6 +32,11 @@ export const authApi = {
 };
 
 export const contestApi = {
+  joinBatch: async (batchCode: string) => {
+    const res = await apiClient.post('/student/contests/join-batch', { batchCode });
+    return res.data.data;
+  },
+
   getAssigned: async () => {
     const res = await apiClient.get('/student/contests');
     return res.data.data;

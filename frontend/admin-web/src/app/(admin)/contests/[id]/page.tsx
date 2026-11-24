@@ -2,10 +2,11 @@
 import { useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { sectionsApi, questionsApi, contestsApi } from '@/lib/api';
+import { sectionsApi, questionsApi, contestsApi, rubricsApi } from '@/lib/api';
 import { getErrorMessage } from '@/lib/apiClient';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -13,7 +14,6 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ContestAttendanceTab } from '@/components/contest/ContestAttendanceTab';
 import { ContestAssignmentsTab } from '@/components/contest/ContestAssignmentsTab';
 import { ContestLeaderboardTab } from '@/components/contest/ContestLeaderboardTab';
-import { ContestProctoringTab } from '@/components/contest/ContestProctoringTab';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -29,7 +29,7 @@ import {
   UserCheck,
   AlertCircle,
   X,
-  Eye,
+  Edit2,
 } from 'lucide-react';
 
 interface Section {
@@ -112,7 +112,105 @@ export default function ContestDetailPage() {
     queryKey: ['contest', contestId],
     queryFn: () => contestsApi.get(contestId),
   });
-  const contest = contestData as { title?: string } | null;
+  const contest = contestData as any;
+
+  const { data: rubricsData } = useQuery({
+    queryKey: ['rubrics'],
+    queryFn: rubricsApi.list,
+  });
+  const rubrics: any[] = (rubricsData as any[]) || [];
+
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    batchCode: '',
+    startTime: '',
+    endTime: '',
+    durationMinutes: 180,
+    rubricId: '',
+    description: '',
+    instructions: '',
+    proctorEnabled: true,
+    detectTabSwitch: true,
+    blockCopyPaste: true,
+    enforceFullscreen: true,
+    blockRightClick: true,
+    maxViolations: 5,
+    leaderboardEnabled: true,
+    leaderboardAnonymous: false,
+    leaderboardTopN: 50,
+  });
+
+  const openEditContest = () => {
+    if (!contest) return;
+    setErrorMsg(null);
+    setEditForm({
+      title: contest.title || '',
+      batchCode: contest.batchCode || '',
+      startTime: contest.startTime?.slice(0, 16) || '',
+      endTime: contest.endTime?.slice(0, 16) || '',
+      durationMinutes: contest.durationMinutes || 60,
+      rubricId: contest.rubricId || '',
+      description: contest.description || '',
+      instructions: contest.instructions || '',
+      proctorEnabled: contest.proctorConfig?.enabled ?? true,
+      detectTabSwitch: contest.proctorConfig?.detectTabSwitch ?? true,
+      blockCopyPaste: contest.proctorConfig?.blockCopyPaste ?? true,
+      enforceFullscreen: contest.proctorConfig?.enforceFullscreen ?? true,
+      blockRightClick: contest.proctorConfig?.blockRightClick ?? true,
+      maxViolations: contest.proctorConfig?.maxViolations ?? 5,
+      leaderboardEnabled: contest.leaderboardConfig?.enabled ?? true,
+      leaderboardAnonymous: contest.leaderboardConfig?.displayMode === 'anonymous',
+      leaderboardTopN: contest.leaderboardConfig?.topN ?? 50,
+    });
+    setShowEditModal(true);
+  };
+
+  const updateContestMutation = useMutation({
+    mutationFn: async () => {
+      setErrorMsg(null);
+      if (!editForm.title.trim()) {
+        throw new Error('Contest title is required.');
+      }
+      return contestsApi.update(contestId, {
+        title: editForm.title.trim(),
+        batchCode: editForm.batchCode?.trim() || undefined,
+        description: editForm.description.trim() || undefined,
+        instructions: editForm.instructions.trim() || undefined,
+        startTime: editForm.startTime ? new Date(editForm.startTime).toISOString() : undefined,
+        endTime: editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined,
+        durationMinutes: Number(editForm.durationMinutes) || 60,
+        rubricId: editForm.rubricId || undefined,
+        proctorConfig: {
+          enabled: editForm.proctorEnabled,
+          detectTabSwitch: editForm.detectTabSwitch,
+          detectWindowBlur: true,
+          blockCopyPaste: editForm.blockCopyPaste,
+          blockRightClick: editForm.blockRightClick,
+          enforceFullscreen: editForm.enforceFullscreen,
+          blockDevTools: true,
+          blockPrintScreen: true,
+          blockTextSelection: true,
+          maxViolations: Number(editForm.maxViolations) || 5,
+          violationAction: 'warn',
+        },
+        leaderboardConfig: {
+          enabled: editForm.leaderboardEnabled,
+          displayMode: editForm.leaderboardAnonymous ? 'anonymous' : 'with_names',
+          topN: Number(editForm.leaderboardTopN) || 50,
+          freezeMinutesBeforeEnd: 0,
+        },
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contest', contestId] });
+      qc.invalidateQueries({ queryKey: ['contests'] });
+      setShowEditModal(false);
+    },
+    onError: (err: any) => {
+      setErrorMsg(getErrorMessage(err, 'Failed to update contest'));
+    },
+  });
 
   const { data: sectionsData, isLoading: secLoading } = useQuery({
     queryKey: ['sections', contestId],
@@ -275,7 +373,6 @@ export default function ContestDetailPage() {
     { key: 'assignments', label: 'Assignments', icon: Users },
     { key: 'attendance', label: 'Live Attendance', icon: UserCheck },
     { key: 'leaderboard', label: 'Leaderboard', icon: Trophy },
-    { key: 'proctoring', label: 'Proctoring Feed', icon: Eye },
   ];
 
   return (
@@ -291,12 +388,27 @@ export default function ContestDetailPage() {
             <span>Contests</span>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Management'}</h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{contest?.title || 'Contest Management'}</h1>
+              {contest?.batchCode && (
+                <span className="text-xs font-bold font-mono px-2.5 py-0.5 rounded-md bg-[#EEF2FF] text-[#3760F8] border border-[#C7D2FE]">
+                  Batch: {contest.batchCode}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-500 mt-0.5">Centralized Hub &bull; Sections, Assignments, Attendance &amp; Rankings</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={openEditContest}
+            leftIcon={<Edit2 className="w-3.5 h-3.5 text-[#3760F8]" />}
+          >
+            Edit Contest
+          </Button>
           <Link href={`/reports/${contestId}`}>
             <Button variant="outline" size="sm" leftIcon={<BarChart3 className="w-3.5 h-3.5 text-slate-500" />}>
               Analytics Report
@@ -334,8 +446,6 @@ export default function ContestDetailPage() {
         <ContestAttendanceTab contestId={contestId} />
       ) : activeTab === 'leaderboard' ? (
         <ContestLeaderboardTab contestId={contestId} />
-      ) : activeTab === 'proctoring' ? (
-        <ContestProctoringTab contestId={contestId} />
       ) : (
         /* ================== QUESTIONS & SECTIONS TAB ================== */
         isLoading ? (
@@ -741,6 +851,198 @@ export default function ContestDetailPage() {
               disabled={!codingForm.title.trim()}
             >
               Add Coding Problem
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit Contest Settings Modal */}
+      <Modal open={showEditModal} onClose={() => setShowEditModal(false)} title="Edit Contest Settings" size="lg">
+        <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          {errorMsg && (
+            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          <Input
+            label="Contest Title *"
+            placeholder="e.g. National Coding Olympiad 2026 - Round 1"
+            value={editForm.title}
+            onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+            required
+          />
+
+          <div>
+            <Input
+              label="Batch Code *"
+              placeholder="e.g. BATCH2026 or AIML-A"
+              value={editForm.batchCode}
+              onChange={(e) => setEditForm((f) => ({ ...f, batchCode: e.target.value.toUpperCase() }))}
+            />
+            <p className="mt-1 text-[11px] text-slate-500 font-medium">
+              Students will enter this batch code along with their email to attend this test.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Start Window *"
+              type="datetime-local"
+              value={editForm.startTime}
+              onChange={(e) => setEditForm((f) => ({ ...f, startTime: e.target.value }))}
+            />
+            <Input
+              label="End Window *"
+              type="datetime-local"
+              value={editForm.endTime}
+              onChange={(e) => setEditForm((f) => ({ ...f, endTime: e.target.value }))}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Duration (Minutes) *"
+              type="number"
+              min="5"
+              value={String(editForm.durationMinutes)}
+              onChange={(e) => setEditForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))}
+            />
+            <Select
+              label="Evaluation Rubric"
+              value={editForm.rubricId}
+              onChange={(e) => setEditForm((f) => ({ ...f, rubricId: e.target.value }))}
+            >
+              <option value="">Default Standard Evaluation</option>
+              {rubrics.map((r: any) => (
+                <option key={r._id} value={r._id}>
+                  {r.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <Input
+            label="Description (Optional)"
+            placeholder="Brief overview or eligibility criteria"
+            value={editForm.description}
+            onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+          />
+
+          <Input
+            label="Instructions for Candidates (Optional)"
+            placeholder="e.g. All questions are mandatory. Ensure fullscreen mode."
+            value={editForm.instructions}
+            onChange={(e) => setEditForm((f) => ({ ...f, instructions: e.target.value }))}
+          />
+
+          {/* Security Proctoring Section */}
+          <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
+            <div className="flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                id="editClusterProctorEnabled"
+                className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded cursor-pointer"
+                checked={editForm.proctorEnabled}
+                onChange={(e) => setEditForm((f) => ({ ...f, proctorEnabled: e.target.checked }))}
+              />
+              <label htmlFor="editClusterProctorEnabled" className="text-xs font-bold text-slate-800 cursor-pointer">
+                Enable Assessment Proctoring
+              </label>
+            </div>
+
+            {editForm.proctorEnabled && (
+              <div className="ml-6 space-y-2.5 text-xs text-slate-700 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-[#3760F8]"
+                      checked={editForm.detectTabSwitch}
+                      onChange={(e) => setEditForm((f) => ({ ...f, detectTabSwitch: e.target.checked }))}
+                    />
+                    <span>Detect Tab Switches</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-[#3760F8]"
+                      checked={editForm.blockCopyPaste}
+                      onChange={(e) => setEditForm((f) => ({ ...f, blockCopyPaste: e.target.checked }))}
+                    />
+                    <span>Block Copy &amp; Paste</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-[#3760F8]"
+                      checked={editForm.enforceFullscreen}
+                      onChange={(e) => setEditForm((f) => ({ ...f, enforceFullscreen: e.target.checked }))}
+                    />
+                    <span>Enforce Fullscreen Mode</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="accent-[#3760F8]"
+                      checked={editForm.blockRightClick}
+                      onChange={(e) => setEditForm((f) => ({ ...f, blockRightClick: e.target.checked }))}
+                    />
+                    <span>Block Right Click &amp; Inspect</span>
+                  </label>
+                </div>
+
+                <div className="pt-2 max-w-xs">
+                  <Input
+                    label="Max Violation Limit Before Flag"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={String(editForm.maxViolations)}
+                    onChange={(e) => setEditForm((f) => ({ ...f, maxViolations: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Leaderboard Settings */}
+          <div className="border border-slate-200 rounded-2xl p-4 space-y-2.5 bg-slate-50/50">
+            <p className="text-xs font-bold text-slate-800">Leaderboard Configuration</p>
+            <div className="flex flex-wrap gap-4 text-xs text-slate-700">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={editForm.leaderboardEnabled}
+                  onChange={(e) => setEditForm((f) => ({ ...f, leaderboardEnabled: e.target.checked }))}
+                />
+                <span>Visible to Candidates</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-[#3760F8]"
+                  checked={editForm.leaderboardAnonymous}
+                  onChange={(e) => setEditForm((f) => ({ ...f, leaderboardAnonymous: e.target.checked }))}
+                />
+                <span>Anonymize Candidate Names</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
+            <Button variant="outline" size="sm" onClick={() => setShowEditModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => updateContestMutation.mutate()}
+              loading={updateContestMutation.isPending}
+              disabled={!editForm.title.trim()}
+            >
+              Save Changes
             </Button>
           </div>
         </div>

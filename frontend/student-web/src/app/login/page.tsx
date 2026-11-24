@@ -78,9 +78,9 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-3">
           <img src="/logo.png" alt="HACKPRO" className="h-10 w-auto object-contain" />
           <div className="space-y-1">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Sign In</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Candidate Login</h1>
             <p className="text-xs text-slate-500 font-medium">
-              Enter your credentials to access your account
+              Enter your registered email and batch code to attend your test
             </p>
           </div>
         </div>
@@ -98,7 +98,7 @@ export default function LoginPage() {
           {/* Identifier Input */}
           <div className="space-y-1.5">
             <label htmlFor="identifier" className="block text-xs font-semibold text-slate-700">
-              Email or Roll Number
+              Registered Email
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -109,7 +109,7 @@ export default function LoginPage() {
                 type="text"
                 autoComplete="username"
                 autoFocus
-                placeholder="Enter email or roll number"
+                placeholder="student@example.com"
                 {...register('identifier')}
                 className={`w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/20 transition-all ${
                   errors.identifier ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white focus:border-[#3760F8]'
@@ -121,10 +121,10 @@ export default function LoginPage() {
             )}
           </div>
 
-          {/* Password Input */}
+          {/* Password / Batch Code Input */}
           <div className="space-y-1.5">
             <label htmlFor="password" className="block text-xs font-semibold text-slate-700">
-              Password
+              Batch Code / Access Key
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -134,7 +134,7 @@ export default function LoginPage() {
                 id="password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                placeholder="Enter password"
+                placeholder="e.g. BATCH2026"
                 {...register('password')}
                 className={`w-full pl-10 pr-11 py-2.5 rounded-xl border text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/20 transition-all ${
                   errors.password ? 'border-rose-400 bg-rose-50/20' : 'border-slate-200 bg-white focus:border-[#3760F8]'
@@ -163,10 +163,10 @@ export default function LoginPage() {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Signing In...</span>
+                <span>Entering Test Arena...</span>
               </>
             ) : (
-              <span>Sign In</span>
+              <span>Attend Test</span>
             )}
           </button>
         </form>
