@@ -44,6 +44,8 @@ export const createContestSchema = z.object({
   shuffleQuestions: z.boolean().default(false),
   shuffleOptions: z.boolean().default(false),
   resultVisibility: z.enum(['immediate', 'after_contest', 'hidden']).default('immediate'),
+  codeRunCooldownSeconds: z.number().int().min(0).default(30),
+  maxCodeSubmissions: z.number().int().min(1).default(3),
   proctorConfig: proctorConfigSchema.default({}),
   leaderboardConfig: leaderboardConfigSchema.default({}),
 });

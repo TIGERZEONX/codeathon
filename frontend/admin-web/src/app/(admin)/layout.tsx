@@ -141,9 +141,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans">
+    <div className="flex h-screen overflow-hidden bg-slate-50 font-sans print:h-auto print:overflow-visible print:bg-white">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 shadow-xs">
+      <aside className="w-64 bg-white border-r border-slate-200/80 flex flex-col flex-shrink-0 shadow-xs print:hidden">
         {/* Brand Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -216,7 +216,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto bg-slate-50">
+      <main className="flex-1 overflow-y-auto bg-slate-50 print:bg-white print:overflow-visible">
         {!isRouteAuthorized ? (
           <div className="flex-1 flex flex-col items-center justify-center p-8 min-h-[80vh]">
             <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mb-4 shadow-sm">

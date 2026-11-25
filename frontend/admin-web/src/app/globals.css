@@ -1,19 +1,19 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  /* Brand Primary: Cobalt / Electric Blue */
+  /* Brand Primary: Cobalt / Enterprise Blue */
   --color-primary: #3760F8;
   --color-primary-hover: #254EDB;
   --color-primary-light: #EEF2FF;
   
-  /* Brand Secondary: Neon Lime */
-  --color-secondary: #D3FE4F;
-  --color-secondary-hover: #C2F038;
-  --color-secondary-subtle: #F7FEE7;
+  /* Brand Secondary: Neutral Slate */
+  --color-secondary: #475569;
+  --color-secondary-hover: #334155;
+  --color-secondary-subtle: #F1F5F9;
 
   /* Base & Ink */
   --color-base: #3760F8;
@@ -39,11 +39,11 @@
   }
 
   html {
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Manrope', var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
   body {
-    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Manrope', var(--font-manrope), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     @apply bg-slate-50 text-slate-900 antialiased selection:bg-[#3760F8] selection:text-white;
     letter-spacing: -0.011em;
   }

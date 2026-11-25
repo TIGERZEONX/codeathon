@@ -31,23 +31,38 @@ export class ParticipantsService {
   }
 
   async createParticipant(data) {
-    const rollUpper = data.rollNumber.toUpperCase();
-    const existingRoll = await participantRepository.findByRollNumber(rollUpper);
-    if (existingRoll) {
-      throw ApiError.conflict(`Participant with Roll Number ${rollUpper} already exists`);
+    if (!data.email || !data.email.trim()) {
+      throw ApiError.badRequest('Email address is required');
+    }
+    const emailLower = data.email.toLowerCase().trim();
+
+    // Auto-derive name from email if not provided
+    let name = (data.name || '').trim();
+    if (!name) {
+      const emailUserPart = emailLower.split('@')[0].replace(/[._-]/g, ' ');
+      name = emailUserPart.charAt(0).toUpperCase() + emailUserPart.slice(1);
     }
 
-    const emailLower = data.email.toLowerCase();
+    // Auto-generate or derive rollNumber if not provided
+    let rollUpper = (data.rollNumber || '').trim().toUpperCase();
+    if (!rollUpper) {
+      rollUpper = ('STU' + Math.floor(100000 + Math.random() * 900000)).toUpperCase();
+    }
+
     const existingEmail = await userRepository.findByEmail(emailLower);
     if (existingEmail) {
-      throw ApiError.conflict(`User with email ${emailLower} already exists`);
+      const existingParticipant = await participantRepository.findByEmail(emailLower);
+      if (existingParticipant) {
+        return existingParticipant;
+      }
     }
 
-    const hashedPassword = await hashPassword(data.password || 'Codeathon@123');
+    const plainPassword = data.password && data.password.trim().length >= 6 ? data.password.trim() : 'Hackpro@2026';
+    const hashedPassword = await hashPassword(plainPassword);
 
     // Create participant user login
     const user = await userRepository.create({
-      name: data.name,
+      name,
       email: emailLower,
       rollNumber: rollUpper,
       password: hashedPassword,
@@ -61,12 +76,12 @@ export class ParticipantsService {
       id: user.id,
       userId: user.id,
       rollNumber: rollUpper,
-      name: data.name,
+      name,
       email: emailLower,
-      department: data.department || 'Computer Science',
+      department: data.department || 'General',
       yearOrSemester: data.yearOrSemester || 'Final Year',
       teamId: data.teamId || null,
-      plainPasswordPreview: data.password || 'Codeathon@123',
+      plainPasswordPreview: plainPassword,
     });
 
     return participant;
@@ -75,7 +90,7 @@ export class ParticipantsService {
   async bulkImportCsv(csvString) {
     const rows = parseCsv(csvString);
     if (!rows.length) {
-      throw ApiError.badRequest('CSV content is empty or headers are missing. Required: rollNumber, name, email');
+      throw ApiError.badRequest('CSV content is empty or headers are missing. Required: email');
     }
 
     const results = {
@@ -86,20 +101,30 @@ export class ParticipantsService {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
-        const rollNumber = row.rollNumber || row['Roll Number'] || row.roll_no;
-        const name = row.name || row['Name'] || row.fullName;
-        const email = row.email || row['Email'];
-        const department = row.department || row['Department'] || 'Computer Science';
-        const password = row.password || row['Password'] || 'Codeathon@123';
+        const email = (
+          row.email ||
+          row['Email'] ||
+          row['EMAIL'] ||
+          row['Email Address'] ||
+          row['emailAddress'] ||
+          row['e-mail'] ||
+          Object.values(row).find((v) => typeof v === 'string' && v.includes('@')) ||
+          ''
+        ).trim();
 
-        if (!rollNumber || !name || !email) {
-          throw new Error('Missing required fields: rollNumber, name, or email');
+        if (!email) {
+          throw new Error('Missing email address');
         }
 
+        const name = (row.name || row['Name'] || row.fullName || row['Full Name'] || '').trim();
+        const rollNumber = (row.rollNumber || row['Roll Number'] || row.roll_no || row['Roll No'] || row.id || '').trim();
+        const department = (row.department || row['Department'] || 'General').trim();
+        const password = (row.password || row['Password'] || 'Hackpro@2026').trim();
+
         await this.createParticipant({
-          rollNumber,
-          name,
           email,
+          name,
+          rollNumber,
           department,
           password,
         });

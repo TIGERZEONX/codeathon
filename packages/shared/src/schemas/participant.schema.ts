@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
 export const createParticipantSchema = z.object({
-  rollNumber: z.string().min(2, 'Roll Number / ID is required'),
-  name: z.string().min(2, 'Full Name is required'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters').default('Codeathon@123'),
-  department: z.string().optional().default('Computer Science'),
+  name: z.string().optional().default(''),
+  rollNumber: z.string().optional().default(''),
+  password: z.string().optional().default('Hackpro@2026'),
+  department: z.string().optional().default('General'),
   yearOrSemester: z.string().optional().default('Final Year'),
 });
 

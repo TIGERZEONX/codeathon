@@ -10,8 +10,9 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { PillTabs } from '@/components/ui/PillTabs';
+import { Pagination } from '@/components/ui/Pagination';
 import Link from 'next/link';
-import { ArrowLeft, Download, UserCheck, Users, CheckCircle2, Clock, UserX, Search } from 'lucide-react';
+import { ArrowLeft, Download, UserCheck, Users, CheckCircle2, Clock, UserX, Search, Printer, FileText } from 'lucide-react';
 
 interface AttendanceRecord {
   _id: string;
@@ -19,9 +20,11 @@ interface AttendanceRecord {
   userId?: string;
   participantId?: string;
   participantName?: string;
+  email?: string;
   name?: string;
   userName?: string;
   rollNumber?: string;
+  department?: string;
   teamName?: string;
   status: 'absent' | 'present' | 'completed' | string;
   startedAt?: string | null;
@@ -42,6 +45,8 @@ export default function AttendancePage() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
 
   const { data: contestData } = useQuery({
     queryKey: ['contest', contestId],
@@ -51,8 +56,14 @@ export default function AttendancePage() {
   const contest = contestData as { title?: string } | null;
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['attendance', contestId, statusFilter],
-    queryFn: () => attendanceApi.getByContest(contestId, { status: statusFilter || undefined }),
+    queryKey: ['attendance', contestId, statusFilter, search, page, limit],
+    queryFn: () =>
+      attendanceApi.getByContest(contestId, {
+        status: statusFilter || undefined,
+        search,
+        page,
+        limit,
+      }),
     enabled: !!contestId,
   });
 
@@ -64,6 +75,7 @@ export default function AttendancePage() {
     if (Array.isArray((data as any).data)) return (data as any).data;
     return [];
   }, [data]);
+  const pagination = (data as any)?.pagination;
 
   const stats = useMemo(() => {
     const total = (data as any)?.totalAssigned ?? records.length;
@@ -118,10 +130,26 @@ export default function AttendancePage() {
     },
     {
       key: 'participantName',
-      header: 'Candidate Name',
+      header: 'Candidate & Email',
       render: (r: AttendanceRecord) => (
-        <span className="text-xs font-semibold text-slate-900 tracking-tight">
-          {r.participantName || r.name || r.userName || 'Candidate'}
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-slate-900 tracking-tight">
+            {r.participantName || r.name || r.userName || 'Candidate'}
+          </span>
+          {r.email && r.email !== '—' && (
+            <span className="text-[11px] text-slate-500 font-mono mt-0.5">
+              {r.email}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      render: (r: AttendanceRecord) => (
+        <span className="text-xs text-slate-600 font-medium">
+          {r.department || '—'}
         </span>
       ),
     },
@@ -129,7 +157,7 @@ export default function AttendancePage() {
       key: 'teamName',
       header: 'Team Allocation',
       render: (r: AttendanceRecord) =>
-        r.teamName ? (
+        r.teamName && r.teamName !== 'Individual' ? (
           <Badge color="neon">{r.teamName}</Badge>
         ) : (
           <span className="text-slate-400 text-xs font-medium">Individual</span>
@@ -169,9 +197,33 @@ export default function AttendancePage() {
   ];
 
   return (
-    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 sm:p-8 space-y-6 max-w-7xl mx-auto print:p-2 print:space-y-4">
+      {/* Official Print Header (Visible only when printing/saving to PDF) */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="HACKPRO" className="h-10 w-auto object-contain" />
+            <div>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight">HACKPRO ASSESSMENT PLATFORM</h1>
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Candidate Attendance & Telemetry Dossier</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-xs font-mono font-bold text-slate-900">Generated: {new Date().toLocaleString()}</p>
+            <p className="text-[11px] text-slate-500 font-mono">Contest ID: {contestId}</p>
+          </div>
+        </div>
+        <div className="mt-3 p-3 bg-slate-100 rounded-lg flex items-center justify-between text-xs font-medium text-slate-800">
+          <div><span className="text-slate-500">Contest: </span><strong>{contest?.title || 'Assessment Contest'}</strong></div>
+          <div><span className="text-slate-500">Enrolled: </span><strong>{stats.total}</strong></div>
+          <div><span className="text-slate-500">Present: </span><strong className="text-emerald-700">{stats.present}</strong></div>
+          <div><span className="text-slate-500">Submitted: </span><strong className="text-indigo-700">{stats.completed}</strong></div>
+          <div><span className="text-slate-500">Absent: </span><strong className="text-rose-600">{stats.absent}</strong></div>
+        </div>
+      </div>
+
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <Link
             href={`/contests/${contestId}?tab=attendance`}
@@ -188,18 +240,29 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExport}
-          leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-        >
-          Export Attendance CSV
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
+          >
+            Export Detailed CSV
+          </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => window.print()}
+            leftIcon={<Printer className="w-3.5 h-3.5" />}
+          >
+            Download Attendance PDF
+          </Button>
+        </div>
       </div>
 
       {/* Roster Overview Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
         <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500">
             <span>Enrolled Total</span>
@@ -246,7 +309,7 @@ export default function AttendancePage() {
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs print:hidden">
         <div className="overflow-x-auto scrollbar-none pb-1 sm:pb-0">
           <PillTabs
             items={[
@@ -256,7 +319,10 @@ export default function AttendancePage() {
               { id: 'absent', label: 'Absent', count: stats.absent },
             ]}
             activeId={statusFilter}
-            onChange={(val) => setStatusFilter(val)}
+            onChange={(val) => {
+              setStatusFilter(val);
+              setPage(1);
+            }}
           />
         </div>
 
@@ -264,7 +330,10 @@ export default function AttendancePage() {
           <Input
             placeholder="Search by name, roll no, or team..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
         </div>
       </div>
@@ -274,12 +343,28 @@ export default function AttendancePage() {
           <Spinner size="lg" />
         </div>
       ) : (
-        <Table
-          columns={columns}
-          data={filtered}
-          rowKey={(r) => r._id || r.id || r.userId || Math.random().toString()}
-          emptyMessage="No attendance records found matching criteria."
-        />
+        <>
+          <Table
+            columns={columns}
+            data={filtered}
+            rowKey={(r) => r._id || r.id || r.userId || Math.random().toString()}
+            emptyMessage="No attendance records found matching criteria."
+          />
+
+          {pagination && (
+            <Pagination
+              page={page}
+              totalPages={pagination.totalPages || 1}
+              total={pagination.total || 0}
+              limit={limit}
+              onPageChange={(p) => setPage(p)}
+              onLimitChange={(l) => {
+                setLimit(l);
+                setPage(1);
+              }}
+            />
+          )}
+        </>
       )}
     </div>
   );

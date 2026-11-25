@@ -90,6 +90,10 @@ export class AttemptsService {
           else if (now > end) computedStatus = CONTEST_STATUS.ENDED;
         }
 
+        const canShowScore =
+          contest.showTotalPointsEarned !== false &&
+          contest.resultVisibility !== 'hidden';
+
         assignedContests.push({
           id: contest.id,
           _id: contest.id,
@@ -105,6 +109,7 @@ export class AttemptsService {
           computedStatus,
           isTurnedOff: contest.isTurnedOff || false,
           showTotalPointsEarned: contest.showTotalPointsEarned !== false,
+          resultVisibility: contest.resultVisibility || 'immediate',
           proctorConfig: contest.proctorConfig || {},
           leaderboardConfig: contest.leaderboardConfig || {},
           attempt: attempt
@@ -114,7 +119,7 @@ export class AttemptsService {
                 startedAt: attempt.startedAt,
                 endsAt: attempt.endsAt,
                 remainingSeconds,
-                finalScore: score,
+                finalScore: canShowScore ? score : null,
               }
             : null,
         });
@@ -152,6 +157,10 @@ export class AttemptsService {
 
     const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
 
+    const canShowScore =
+      contest.showTotalPointsEarned !== false &&
+      contest.resultVisibility !== 'hidden';
+
     return {
       id: contest.id,
       title: contest.title,
@@ -164,6 +173,8 @@ export class AttemptsService {
       totalMarks,
       questionCount: questions.length,
       status: contest.status,
+      showTotalPointsEarned: contest.showTotalPointsEarned !== false,
+      resultVisibility: contest.resultVisibility || 'immediate',
       proctorConfig: contest.proctorConfig || {},
       leaderboardConfig: contest.leaderboardConfig || {},
       attempt: attempt
@@ -173,7 +184,7 @@ export class AttemptsService {
             startedAt: attempt.startedAt,
             endsAt: attempt.endsAt,
             remainingSeconds: attempt.remainingSeconds,
-            finalScore: attempt.finalScore,
+            finalScore: canShowScore ? attempt.finalScore : null,
           }
         : null,
     };
@@ -371,16 +382,32 @@ export class AttemptsService {
 
     const savedAnswers = await answerRepository.findByAttempt(attempt.id);
 
+    const canShowScore =
+      contest.showTotalPointsEarned !== false &&
+      contest.resultVisibility !== 'hidden';
+
+    const existingSubmissions = await submissionRepository.findByAttempt(attempt.id);
+    const submissionCounts = {};
+    (existingSubmissions || []).forEach((s) => {
+      if (s.questionId) {
+        submissionCounts[s.questionId] = (submissionCounts[s.questionId] || 0) + 1;
+      }
+    });
+
+    const codeRunCooldownSeconds = contest.codeRunCooldownSeconds ?? 30;
+    const maxCodeSubmissions = contest.maxCodeSubmissions ?? 3;
+
     return {
-      showTotalPointsEarned: contest.showTotalPointsEarned !== false,
       contest: {
         id: contest.id,
         title: contest.title,
         description: contest.description,
         instructions: contest.instructions,
-        showTotalPointsEarned: contest.showTotalPointsEarned !== false,
         proctorConfig: contest.proctorConfig || {},
-        leaderboardConfig: contest.leaderboardConfig || {},
+        showTotalPointsEarned: contest.showTotalPointsEarned !== false,
+        resultVisibility: contest.resultVisibility || 'immediate',
+        codeRunCooldownSeconds,
+        maxCodeSubmissions,
       },
       attempt: {
         id: attempt.id,
@@ -389,23 +416,22 @@ export class AttemptsService {
         startedAt: attempt.startedAt,
         endsAt: timing.endsAt,
         remainingSeconds: timing.remainingSeconds,
-        finalScore: attempt.finalScore,
-        id: attempt.id,
-      _id: attempt.id,
-      attemptId: attempt.id,
-      totalScore: attempt.finalScore ?? attempt.totalScore ?? 0,
-        mcqScore: attempt.mcqScore ?? 0,
-        codingScore: attempt.codingScore ?? 0,
+        finalScore: canShowScore ? attempt.finalScore : null,
+        totalScore: canShowScore ? (attempt.finalScore ?? attempt.totalScore ?? 0) : null,
+        mcqScore: canShowScore ? (attempt.mcqScore ?? 0) : null,
+        codingScore: canShowScore ? (attempt.codingScore ?? 0) : null,
         submittedAt: attempt.submittedAt,
         completionTimeSeconds: attempt.completionTimeSeconds,
       },
       id: attempt.id,
       _id: attempt.id,
       attemptId: attempt.id,
-      totalScore: attempt.finalScore ?? attempt.totalScore ?? 0,
-      finalScore: attempt.finalScore,
-      mcqScore: attempt.mcqScore ?? 0,
-      codingScore: attempt.codingScore ?? 0,
+      showTotalPointsEarned: contest.showTotalPointsEarned !== false,
+      resultVisibility: contest.resultVisibility || 'immediate',
+      totalScore: canShowScore ? (attempt.finalScore ?? attempt.totalScore ?? 0) : null,
+      finalScore: canShowScore ? attempt.finalScore : null,
+      mcqScore: canShowScore ? (attempt.mcqScore ?? 0) : null,
+      codingScore: canShowScore ? (attempt.codingScore ?? 0) : null,
       submittedAt: attempt.submittedAt,
       startedAt: attempt.startedAt,
       status: attempt.status,
@@ -413,6 +439,10 @@ export class AttemptsService {
       sections: sectionList,
       questions: sanitizedQuestions,
       savedAnswers,
+      submissionCounts,
+      codeRunCooldownSeconds,
+      maxCodeSubmissions,
+      lastRunTimestamps: attempt.lastRunTimestamps || {},
       serverTime: new Date().toISOString(),
     };
   }
@@ -435,6 +465,22 @@ export class AttemptsService {
   }
 
   async runCode(contestId, user, { questionId, code, language, customInput }) {
+    const contest = await contestRepository.findById(contestId);
+    const cooldownSeconds = contest?.codeRunCooldownSeconds ?? 30;
+
+    const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
+    if (attempt && cooldownSeconds > 0) {
+      const lastRunTimestamps = attempt.lastRunTimestamps || {};
+      const lastRun = lastRunTimestamps[questionId] || 0;
+      const elapsed = Math.floor((Date.now() - lastRun) / 1000);
+      if (elapsed < cooldownSeconds) {
+        const remaining = cooldownSeconds - elapsed;
+        throw ApiError.badRequest(`Code run cooling time active. Please wait ${remaining}s before running again.`);
+      }
+      lastRunTimestamps[questionId] = Date.now();
+      await attemptRepository.update(attempt.id, { lastRunTimestamps });
+    }
+
     const question = await questionRepository.findById(questionId);
     if (!question || question.type !== 'coding') {
       throw ApiError.badRequest('Question not found or not a coding challenge');
@@ -464,6 +510,7 @@ export class AttemptsService {
         overallVerdict: execResult.verdict,
         timeMs: execResult.timeMs,
         passed: execResult.verdict === SUBMISSION_VERDICT.PASSED,
+        cooldownSeconds,
       };
     }
 
@@ -514,6 +561,7 @@ export class AttemptsService {
       cases: caseResults,
       totalCases: caseResults.length,
       passedCases: caseResults.filter((c) => c.passed).length,
+      cooldownSeconds,
     };
   }
 
@@ -522,6 +570,14 @@ export class AttemptsService {
     if (!attempt) throw ApiError.notFound('Attempt not found');
     if (attempt.status === ATTEMPT_STATUS.SUBMITTED) {
       throw ApiError.attemptLocked();
+    }
+
+    const contest = await contestRepository.findById(contestId);
+    const maxSubmissions = contest?.maxCodeSubmissions ?? 3;
+    const existingList = await submissionRepository.findByAttemptAndQuestion(attempt.id, questionId);
+    const existingCount = existingList?.length || 0;
+    if (existingCount >= maxSubmissions) {
+      throw ApiError.badRequest(`Maximum code submissions limit reached (${maxSubmissions}/${maxSubmissions}). You cannot submit more solutions for this challenge.`);
     }
 
     const question = await questionRepository.findById(questionId);
@@ -637,6 +693,9 @@ export class AttemptsService {
       maxScore: totalScore,
       score: earnedScore,
       cases: clientSafeCases,
+      submissionsUsed: existingCount + 1,
+      maxSubmissions,
+      remainingSubmissions: Math.max(0, maxSubmissions - (existingCount + 1)),
     };
   }
 

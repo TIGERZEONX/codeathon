@@ -1,11 +1,11 @@
 /**
  * Codeathon Design Tokens
- * Modern high-tech UI with Primary #3760F8 (Cobalt / Electric Blue)
- * and Secondary #D3FE4F (Neon Lime / Electric Chartreuse)
+ * Clean enterprise UI with Primary #3760F8 (Cobalt / Enterprise Blue)
+ * and Secondary #475569 (Slate / Charcoal)
  */
 
 export const DEFAULT_PRIMARY_COLOR = '#3760F8';
-export const DEFAULT_SECONDARY_COLOR = '#D3FE4F';
+export const DEFAULT_SECONDARY_COLOR = '#475569';
 
 export const tokens = {
   colors: {
@@ -23,16 +23,16 @@ export const tokens = {
       800: '#173394',
       900: '#0F1E5C',
     },
-    // Brand Secondary (Neon Lime #D3FE4F)
+    // Brand Secondary (Clean Slate #475569)
     secondary: {
-      50: '#F7FEE7',
-      100: '#ECFCCB',
-      200: '#E9FEA2',
-      DEFAULT: '#D3FE4F',
-      hover: '#C2F038',
-      dark: '#A4D817',
-      800: '#4D7C0F',
-      900: '#365314',
+      50: '#F8FAFC',
+      100: '#F1F5F9',
+      200: '#E2E8F0',
+      DEFAULT: '#475569',
+      hover: '#334155',
+      dark: '#1E293B',
+      800: '#1E293B',
+      900: '#0F172A',
     },
     // Base palette
     base: {
@@ -135,11 +135,11 @@ export const tokens = {
 
 export const cssRootVariables = `
 :root {
-  --font-poppins: 'Poppins', sans-serif;
+  --font-manrope: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --color-primary: #3760F8;
   --color-primary-hover: #254EDB;
-  --color-secondary: #D3FE4F;
-  --color-secondary-hover: #C2F038;
+  --color-secondary: #475569;
+  --color-secondary-hover: #334155;
   --color-ink-primary: #0B0F19;
   --color-ink-secondary: #1E293B;
   --color-ink-muted: #64748B;

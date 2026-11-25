@@ -100,12 +100,18 @@ interface AttemptState {
   sections?: Section[];
   questions?: Question[];
   savedAnswers?: any[];
+  codeRunCooldownSeconds?: number;
+  maxCodeSubmissions?: number;
+  submissionCounts?: Record<string, number>;
+  lastRunTimestamps?: Record<string, number>;
   contest?: {
     id?: string;
     title?: string;
     description?: string;
     instructions?: string;
     proctorConfig?: ProctorConfig;
+    codeRunCooldownSeconds?: number;
+    maxCodeSubmissions?: number;
   };
   startedAt?: string;
   submittedAt?: string;
@@ -232,6 +238,13 @@ export default function AttemptPage() {
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [showQuestionPaperModal, setShowQuestionPaperModal] = useState(false);
   const [isLangOpen, setIsLangOpen] = useState(false);
+  const [editorFontSize, setEditorFontSize] = useState<'sm' | 'base' | 'lg'>('sm');
+  const [isConsoleCollapsed, setIsConsoleCollapsed] = useState(false);
+  const [isConsoleExpanded, setIsConsoleExpanded] = useState(false);
+  const [isEditorMaximized, setIsEditorMaximized] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
 
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -338,6 +351,29 @@ export default function AttemptPage() {
       });
     }
   }, [qId]);
+
+  // Live Cooldown Timer for Code Run
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return;
+    const timer = setInterval(() => {
+      setCooldownRemaining((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownRemaining]);
+
+  // Sync submission counts & cooling state from attempt
+  useEffect(() => {
+    if (attempt?.submissionCounts) {
+      setSubmissionCounts(attempt.submissionCounts);
+    }
+    if (qId && attempt?.lastRunTimestamps?.[qId]) {
+      const cooldownSec = attempt?.codeRunCooldownSeconds ?? attempt?.contest?.codeRunCooldownSeconds ?? 30;
+      const elapsed = Math.floor((Date.now() - attempt.lastRunTimestamps[qId]) / 1000);
+      if (elapsed < cooldownSec) {
+        setCooldownRemaining(cooldownSec - elapsed);
+      }
+    }
+  }, [attempt, qId]);
 
   // Initialize saved answers from backend
   useEffect(() => {
@@ -630,10 +666,12 @@ export default function AttemptPage() {
     setActiveConsoleTab('testcases');
     setSelectedCaseIdx(0);
     if (activeQuestionIdx < currentQuestions.length - 1) {
-      setActiveQuestionIdx((i) => i + 1);
+      setActiveQuestionIdx((prev) => prev + 1);
     } else if (activeSectionIdx < sections.length - 1) {
-      setActiveSectionIdx((s) => s + 1);
+      setActiveSectionIdx((prevSec) => prevSec + 1);
       setActiveQuestionIdx(0);
+    } else {
+      setShowSubmitConfirm(true);
     }
   };
 
@@ -645,15 +683,22 @@ export default function AttemptPage() {
     if (activeQuestionIdx > 0) {
       setActiveQuestionIdx((i) => i - 1);
     } else if (activeSectionIdx > 0) {
-      setActiveSectionIdx((s) => s - 1);
-      const prevSec = sections[activeSectionIdx - 1];
+      const prevSecIdx = activeSectionIdx - 1;
+      setActiveSectionIdx(prevSecIdx);
+      const prevSec = sections[prevSecIdx];
       setActiveQuestionIdx((prevSec?.questions?.length || 1) - 1);
     }
   };
 
+  const maxSubmissions = attempt?.maxCodeSubmissions ?? attempt?.contest?.maxCodeSubmissions ?? 3;
+  const currentSubmissionsUsed = submissionCounts[qId] || 0;
+  const submissionsRemaining = Math.max(0, maxSubmissions - currentSubmissionsUsed);
+  const isSubmissionLimitReached = currentSubmissionsUsed >= maxSubmissions;
+
   // Code Runner
   const handleRunCode = async () => {
     if (!qId || !currentAnswer?.code) return;
+    if (cooldownRemaining > 0) return;
     setRunningCode(true);
     setRunResult(null);
     setSubmitCodeResult(null);
@@ -668,6 +713,8 @@ export default function AttemptPage() {
       });
       setRunResult(res as RunResult);
       setActiveConsoleTab('result');
+      const cooldownSec = (res as any)?.cooldownSeconds ?? attempt?.codeRunCooldownSeconds ?? attempt?.contest?.codeRunCooldownSeconds ?? 30;
+      setCooldownRemaining(cooldownSec);
     } catch (err: any) {
       setRunResult({
         error: err.response?.data?.error?.message || err.message || 'Execution error',
@@ -682,6 +729,7 @@ export default function AttemptPage() {
   // Code Submitter
   const handleSubmitCode = async () => {
     if (!qId || !currentAnswer?.code) return;
+    if (isSubmissionLimitReached) return;
     setSubmittingCode(true);
     setSubmitCodeResult(null);
     setRunResult(null);
@@ -694,10 +742,14 @@ export default function AttemptPage() {
         language: currentAnswer.language || 'python',
       });
       setSubmitCodeResult(res as CodeResult);
+      setSubmissionCounts((prev) => ({
+        ...prev,
+        [qId]: (prev[qId] || 0) + 1,
+      }));
       setActiveConsoleTab('result');
     } catch (err: any) {
       setSubmitCodeResult({
-        verdict: err.response?.data?.error?.message || 'Submission Error',
+        verdict: err.response?.data?.error?.message || err.message || 'Submission Error',
         passedCases: 0,
         totalCases: 0,
         score: 0,
@@ -877,11 +929,15 @@ export default function AttemptPage() {
 
       {/* ===================== STRUCTURED SPLIT WORKSPACE ===================== */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* LEFT PANEL (50% Desktop): Question Statement & Specifications */}
+        {/* LEFT PANEL: Question Statement & Specifications */}
         <div
-          className={`flex-1 md:w-1/2 flex-col bg-white border-r border-slate-200 overflow-hidden ${
-            mobileTab === 'question' ? 'flex' : 'hidden md:flex'
-          }`}
+          className={`flex-col bg-white border-r border-slate-200 overflow-hidden ${
+            activeQuestion?.type === 'coding'
+              ? isEditorMaximized
+                ? 'hidden'
+                : 'w-full md:w-[38%] lg:w-[34%] xl:w-[32%] shrink-0'
+              : 'flex-1 md:w-1/2'
+          } ${mobileTab === 'question' ? 'flex' : 'hidden md:flex'}`}
         >
           {/* Question Sub-Header */}
           <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
@@ -1026,22 +1082,24 @@ export default function AttemptPage() {
                             </div>
 
                             <div className="p-3.5 space-y-2.5 font-mono">
-                              <div>
-                                <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
-                                  Sample Input {idx}
-                                </span>
-                                <pre className="p-2.5 bg-slate-900 text-slate-100 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed">
-                                  {tc.input}
-                                </pre>
-                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div>
+                                  <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
+                                    Sample Input {idx}
+                                  </span>
+                                  <pre className="p-2.5 bg-slate-900 text-slate-100 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed">
+                                    {tc.input}
+                                  </pre>
+                                </div>
 
-                              <div>
-                                <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
-                                  Sample Output {idx}
-                                </span>
-                                <pre className="p-2.5 bg-slate-900 text-emerald-400 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed font-semibold">
-                                  {tc.expectedOutput || (tc as any).output}
-                                </pre>
+                                <div>
+                                  <span className="font-sans font-bold text-[10px] text-slate-500 uppercase tracking-wider block mb-1">
+                                    Sample Output {idx}
+                                  </span>
+                                  <pre className="p-2.5 bg-slate-900 text-emerald-400 rounded-lg overflow-x-auto whitespace-pre-wrap text-[11px] leading-relaxed font-semibold">
+                                    {tc.expectedOutput || (tc as any).output}
+                                  </pre>
+                                </div>
                               </div>
 
                               {tc.explanation && (
@@ -1072,11 +1130,15 @@ export default function AttemptPage() {
           </div>
         </div>
 
-        {/* RIGHT PANEL (50% Desktop): Answer Area (MCQ Radios or Coding IDE) */}
+        {/* RIGHT PANEL: Answer Area (MCQ Radios or Coding IDE) */}
         <div
-          className={`flex-1 md:w-1/2 flex-col bg-white overflow-hidden ${
-            mobileTab === 'answer' ? 'flex' : 'hidden md:flex'
-          }`}
+          className={`flex-col overflow-hidden ${
+            activeQuestion?.type === 'coding'
+              ? isEditorMaximized
+                ? 'w-full flex-1 bg-[#0D1117]'
+                : 'w-full md:w-[62%] lg:w-[66%] xl:w-[68%] flex-1 bg-[#0D1117]'
+              : 'flex-1 md:w-1/2 bg-white'
+          } ${mobileTab === 'answer' ? 'flex' : 'hidden md:flex'}`}
         >
           {activeQuestion?.type === 'mcq' ? (
             /* ================== MCQ OPTION SELECTOR ================== */
@@ -1142,62 +1204,171 @@ export default function AttemptPage() {
             </div>
           ) : (
             /* ================== CODING IDE & TEST RUNNER ================== */
-            <div className="flex-1 flex flex-col overflow-hidden bg-slate-900">
-              {/* Language Toolbar */}
-              <div className="bg-[#1E293B] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2">
-                  <Code2 className="w-4 h-4 text-[#3760F8]" />
-                  <span className="text-xs font-bold text-slate-300">Editor</span>
+            <div className="w-full h-full flex-1 flex flex-col overflow-hidden bg-[#0D1117]">
+              {/* Language Toolbar & Workspace Controls */}
+              <div className="bg-[#161B22] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Code2 className="w-4 h-4 text-[#3760F8]" />
+                    <span className="text-xs font-bold text-slate-200">Interactive Editor</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono hidden sm:inline-block border-l border-slate-700/80 pl-2.5">
+                    {((currentAnswer?.code !== undefined
+                      ? currentAnswer.code
+                      : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
+                        DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
+                        '').split('\n')).length} lines
+                  </span>
                 </div>
-                <div className="relative inline-flex items-center">
+
+                <div className="flex items-center gap-2.5">
+                  {/* Maximize / Split View Toggle */}
                   <button
                     type="button"
-                    onClick={() => setIsLangOpen((prev) => !prev)}
-                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-white text-xs font-semibold rounded-lg pl-3 pr-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/40 shadow-xs transition-colors cursor-pointer"
+                    onClick={() => setIsEditorMaximized((prev) => !prev)}
+                    title={isEditorMaximized ? 'Split view (Show problem description)' : 'Maximize editor (Full screen coding)'}
+                    className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-slate-300 hover:text-white text-xs rounded-lg hover:bg-slate-800 border border-slate-700/80 transition-colors cursor-pointer"
                   >
-                    <span>
-                      {SUPPORTED_LANGUAGES.find((l) => l.key === (currentAnswer?.language || 'python'))?.name || 'Python'}
-                    </span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isLangOpen ? 'rotate-180 text-[#3760F8]' : ''}`} />
+                    {isEditorMaximized ? (
+                      <>
+                        <Minimize2 className="w-3.5 h-3.5 text-blue-400" />
+                        <span className="text-[11px] font-medium">Split View</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[11px] font-medium">Maximize</span>
+                      </>
+                    )}
+                  </button>
+                  {/* Font Size Adjuster */}
+                  <div className="hidden sm:flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/80 text-[11px] font-mono text-slate-400">
+                    <button
+                      type="button"
+                      onClick={() => setEditorFontSize('sm')}
+                      title="Font Size: Small (12px)"
+                      className={`px-2 py-0.5 rounded cursor-pointer ${editorFontSize === 'sm' ? 'bg-[#3760F8] text-white font-bold' : 'hover:text-white'}`}
+                    >
+                      A-
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorFontSize('base')}
+                      title="Font Size: Normal (14px)"
+                      className={`px-2 py-0.5 rounded cursor-pointer ${editorFontSize === 'base' ? 'bg-[#3760F8] text-white font-bold' : 'hover:text-white'}`}
+                    >
+                      A
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditorFontSize('lg')}
+                      title="Font Size: Large (16px)"
+                      className={`px-2 py-0.5 rounded cursor-pointer ${editorFontSize === 'lg' ? 'bg-[#3760F8] text-white font-bold' : 'hover:text-white'}`}
+                    >
+                      A+
+                    </button>
+                  </div>
+
+                  {/* Reset Starter Code */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Reset code to initial problem template? Your unsaved edits will be replaced.')) {
+                        const lang = currentAnswer?.language || 'python';
+                        const starter = activeQuestion?.codingConfig?.starterCode?.[lang] || DEFAULT_STARTER_CODE[lang] || '';
+                        setAnswers((prev) => ({
+                          ...prev,
+                          [qId]: { ...prev[qId], code: starter },
+                        }));
+                      }
+                    }}
+                    title="Reset to starter template"
+                    className="flex items-center gap-1 px-2 py-1 text-slate-400 hover:text-white text-xs rounded-lg hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Reset</span>
                   </button>
 
-                  {isLangOpen && (
-                    <div className="absolute right-0 top-full mt-1.5 w-36 bg-slate-800 rounded-xl border border-slate-700 shadow-xl overflow-hidden py-1 z-50">
-                      {SUPPORTED_LANGUAGES.map((l) => {
-                        const isSel = (currentAnswer?.language || 'python') === l.key;
-                        return (
-                          <button
-                            key={l.key}
-                            type="button"
-                            onClick={() => {
-                              const currentCode = currentAnswer?.code;
-                              const isDefaultCode = !currentCode || Object.values(DEFAULT_STARTER_CODE).some((tpl) => tpl.trim() === currentCode.trim());
-                              setAnswers((prev) => ({
-                                ...prev,
-                                [qId]: {
-                                  ...prev[qId],
-                                  language: l.key,
-                                  ...(isDefaultCode ? { code: activeQuestion?.codingConfig?.starterCode?.[l.key] || DEFAULT_STARTER_CODE[l.key] || '' } : {}),
-                                },
-                              }));
-                              setIsLangOpen(false);
-                            }}
-                            className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer ${
-                              isSel ? 'bg-[#3760F8] text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
-                            }`}
-                          >
-                            <span>{l.name}</span>
-                            {isSel && <Check className="w-3.5 h-3.5" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {/* Language Selector */}
+                  <div className="relative inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setIsLangOpen((prev) => !prev)}
+                      className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-white text-xs font-semibold rounded-lg pl-3 pr-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#3760F8]/40 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <span>
+                        {SUPPORTED_LANGUAGES.find((l) => l.key === (currentAnswer?.language || 'python'))?.name || 'Python'}
+                      </span>
+                      <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isLangOpen ? 'rotate-180 text-[#3760F8]' : ''}`} />
+                    </button>
+
+                    {isLangOpen && (
+                      <div className="absolute right-0 top-full mt-1.5 w-40 bg-slate-800 rounded-xl border border-slate-700 shadow-xl overflow-hidden py-1 z-50">
+                        {SUPPORTED_LANGUAGES.map((l) => {
+                          const isSel = (currentAnswer?.language || 'python') === l.key;
+                          return (
+                            <button
+                              key={l.key}
+                              type="button"
+                              onClick={() => {
+                                const currentCode = currentAnswer?.code;
+                                const isDefaultCode = !currentCode || Object.values(DEFAULT_STARTER_CODE).some((tpl) => tpl.trim() === currentCode.trim());
+                                setAnswers((prev) => ({
+                                  ...prev,
+                                  [qId]: {
+                                    ...prev[qId],
+                                    language: l.key,
+                                    ...(isDefaultCode ? { code: activeQuestion?.codingConfig?.starterCode?.[l.key] || DEFAULT_STARTER_CODE[l.key] || '' } : {}),
+                                  },
+                                }));
+                                setIsLangOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 text-xs font-semibold flex items-center justify-between cursor-pointer ${
+                                isSel ? 'bg-[#3760F8] text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                              }`}
+                            >
+                              <span>{l.name}</span>
+                              {isSel && <Check className="w-3.5 h-3.5" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* Code Editor */}
-              <div className="flex-1 flex flex-col overflow-hidden">
+              {/* Code Editor with Synchronized Line Numbers */}
+              <div className="flex-1 flex overflow-hidden bg-[#0D1117] relative">
+                {/* Line Numbers Gutter */}
+                <div
+                  ref={lineNumbersRef}
+                  className="w-11 sm:w-12 bg-[#090D16] border-r border-slate-800 text-slate-500 font-mono select-none py-3.5 text-right pr-2.5 overflow-hidden shrink-0 space-y-0"
+                  style={{
+                    fontSize: editorFontSize === 'sm' ? '12px' : editorFontSize === 'base' ? '14px' : '16px',
+                    lineHeight: '24px',
+                  }}
+                >
+                  {Array.from(
+                    {
+                      length: Math.max(
+                        ((currentAnswer?.code !== undefined
+                          ? currentAnswer.code
+                          : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
+                            DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
+                            '').split('\n')).length,
+                        15
+                      ),
+                    },
+                    (_, i) => (
+                      <div key={i + 1} className="h-6 leading-6">
+                        {i + 1}
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* Editor Textarea */}
                 <textarea
                   value={
                     currentAnswer?.code !== undefined
@@ -1213,14 +1384,23 @@ export default function AttemptPage() {
                       [qId]: { ...prev[qId], code },
                     }));
                   }}
+                  onScroll={(e) => {
+                    if (lineNumbersRef.current) {
+                      lineNumbersRef.current.scrollTop = e.currentTarget.scrollTop;
+                    }
+                  }}
                   spellCheck={false}
-                  className="flex-1 w-full font-mono text-xs p-4 bg-[#0F172A] text-[#F8FAFC] leading-relaxed resize-none focus:outline-none selection:bg-[#3760F8]"
+                  style={{
+                    fontSize: editorFontSize === 'sm' ? '12px' : editorFontSize === 'base' ? '14px' : '16px',
+                    lineHeight: '24px',
+                  }}
+                  className="flex-1 w-full font-mono py-3.5 px-3.5 bg-[#0D1117] text-[#F0F6FC] leading-6 resize-none focus:outline-none selection:bg-[#3760F8]/40 overflow-y-auto whitespace-pre tab-4"
                   placeholder="# Write your program code here..."
                 />
               </div>
 
               {/* Action Controls Bar */}
-              <div className="px-4 py-2.5 bg-[#1E293B] border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+              <div className="px-4 py-2.5 bg-[#161B22] border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 hover:text-white cursor-pointer select-none">
                     <input
@@ -1230,6 +1410,7 @@ export default function AttemptPage() {
                         setShowCustomInput(e.target.checked);
                         if (e.target.checked) {
                           setActiveConsoleTab('testcases');
+                          setIsConsoleCollapsed(false);
                         }
                       }}
                       className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-800 text-[#3760F8] focus:ring-[#3760F8] cursor-pointer"
@@ -1238,47 +1419,82 @@ export default function AttemptPage() {
                   </label>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <button
                     type="button"
-                    onClick={handleRunCode}
-                    disabled={runningCode || submittingCode}
-                    className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 shadow-sm transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                    title="Compile and run against sample test cases"
+                    onClick={() => {
+                      setIsConsoleCollapsed(false);
+                      handleRunCode();
+                    }}
+                    disabled={runningCode || submittingCode || cooldownRemaining > 0}
+                    className={`flex items-center gap-2 px-4 py-2 font-bold text-xs rounded-xl border transition-all cursor-pointer ${
+                      cooldownRemaining > 0
+                        ? 'bg-slate-800/60 text-slate-400 border-slate-700/60 cursor-not-allowed'
+                        : 'bg-slate-800 hover:bg-slate-700 text-white border-slate-700 shadow-sm active:scale-95 disabled:opacity-50'
+                    }`}
+                    title={cooldownRemaining > 0 ? `Code run cooling active. Please wait ${cooldownRemaining}s` : 'Compile and run against sample test cases'}
                   >
                     {runningCode ? (
                       <Spinner size="sm" />
                     ) : (
-                      <Play className="w-3.5 h-3.5 text-[#D3FE4F] fill-[#D3FE4F]" />
+                      <Play className={`w-3.5 h-3.5 ${cooldownRemaining > 0 ? 'text-slate-500' : 'text-emerald-400 fill-emerald-400'}`} />
                     )}
-                    <span>{runningCode ? 'Running...' : 'Run Code'}</span>
+                    <span>
+                      {runningCode
+                        ? 'Running...'
+                        : cooldownRemaining > 0
+                        ? `Run Code (${cooldownRemaining}s)`
+                        : 'Run Code'}
+                    </span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={handleSubmitCode}
-                    disabled={runningCode || submittingCode}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-[#3760F8] hover:bg-[#254EDB] text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
-                    title="Submit code for full test evaluation"
+                    onClick={() => {
+                      setIsConsoleCollapsed(false);
+                      handleSubmitCode();
+                    }}
+                    disabled={runningCode || submittingCode || isSubmissionLimitReached}
+                    className={`flex items-center gap-2 px-5 py-2 font-bold text-xs rounded-xl shadow-md transition-all ${
+                      isSubmissionLimitReached
+                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-75'
+                        : 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white active:scale-95 disabled:opacity-50 cursor-pointer'
+                    }`}
+                    title={isSubmissionLimitReached ? `Maximum submission quota reached (${maxSubmissions}/${maxSubmissions})` : `Submit code for evaluation (${submissionsRemaining} submission(s) remaining)`}
                   >
                     {submittingCode ? (
                       <Spinner size="sm" />
                     ) : (
-                      <SendHorizontal className="w-3.5 h-3.5 text-white" />
+                      <SendHorizontal className={`w-3.5 h-3.5 ${isSubmissionLimitReached ? 'text-slate-500' : 'text-white'}`} />
                     )}
-                    <span>{submittingCode ? 'Submitting...' : 'Submit Code'}</span>
+                    <span>
+                      {submittingCode
+                        ? 'Submitting...'
+                        : isSubmissionLimitReached
+                        ? `Submitted (${maxSubmissions}/${maxSubmissions})`
+                        : `Submit Code (${submissionsRemaining}/${maxSubmissions} left)`}
+                    </span>
                   </button>
                 </div>
               </div>
 
               {/* ===================== HACKERRANK CONSOLE DRAWER ===================== */}
-              <div className="h-64 sm:h-72 flex flex-col bg-[#0B0F19] border-t border-slate-800 text-xs overflow-hidden">
+              <div className={`flex flex-col bg-[#090D16] border-t border-slate-800 text-xs transition-all duration-200 overflow-hidden ${
+                isConsoleCollapsed
+                  ? 'h-10'
+                  : isConsoleExpanded
+                  ? 'h-80 sm:h-96'
+                  : 'h-60 sm:h-64'
+              }`}>
                 {/* Console Navigation Tabs */}
-                <div className="bg-[#131B2E] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+                <div className="bg-[#161B22] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setActiveConsoleTab('testcases')}
+                      onClick={() => {
+                        setActiveConsoleTab('testcases');
+                        setIsConsoleCollapsed(false);
+                      }}
                       className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                         activeConsoleTab === 'testcases'
                           ? 'bg-slate-800 text-white shadow-2xs'
@@ -1291,14 +1507,17 @@ export default function AttemptPage() {
 
                     <button
                       type="button"
-                      onClick={() => setActiveConsoleTab('result')}
+                      onClick={() => {
+                        setActiveConsoleTab('result');
+                        setIsConsoleCollapsed(false);
+                      }}
                       className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-bold text-xs transition-all cursor-pointer ${
                         activeConsoleTab === 'result'
                           ? 'bg-slate-800 text-white shadow-2xs'
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
-                      <Code2 className="w-3.5 h-3.5 text-[#D3FE4F]" />
+                      <Code2 className="w-3.5 h-3.5 text-blue-400" />
                       <span>Code Result</span>
                       {(runResult || submitCodeResult) && (
                         <span className={`w-2 h-2 rounded-full ${
@@ -1307,6 +1526,40 @@ export default function AttemptPage() {
                             : 'bg-rose-400'
                         }`} />
                       )}
+                    </button>
+                  </div>
+
+                  {/* Drawer Size & Collapse Controls */}
+                  <div className="flex items-center gap-2">
+                    {!isConsoleCollapsed && (
+                      <button
+                        type="button"
+                        onClick={() => setIsConsoleExpanded((prev) => !prev)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] font-medium transition-colors cursor-pointer"
+                        title={isConsoleExpanded ? 'Switch to compact console height' : 'Expand console height'}
+                      >
+                        {isConsoleExpanded ? (
+                          <>
+                            <Minimize2 className="w-3 h-3 text-slate-400" />
+                            <span>Compact</span>
+                          </>
+                        ) : (
+                          <>
+                            <Maximize2 className="w-3 h-3 text-slate-400" />
+                            <span>Expand</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setIsConsoleCollapsed((prev) => !prev)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 text-[11px] font-medium transition-colors cursor-pointer"
+                      title={isConsoleCollapsed ? 'Open test drawer' : 'Minimize test drawer'}
+                    >
+                      <span>{isConsoleCollapsed ? 'Open Drawer' : 'Minimize'}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isConsoleCollapsed ? 'rotate-180' : ''}`} />
                     </button>
                   </div>
                 </div>
@@ -1354,22 +1607,24 @@ export default function AttemptPage() {
 
                           {/* Selected Case Preview */}
                           {activeQuestion?.codingConfig?.sampleTestCases && activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx] && (
-                            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2.5">
-                              <div>
-                                <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
-                                  Input:
-                                </span>
-                                <pre className="p-2.5 bg-black/70 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800/80">
-                                  {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].input}
-                                </pre>
-                              </div>
-                              <div>
-                                <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
-                                  Expected Output:
-                                </span>
-                                <pre className="p-2.5 bg-black/70 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800/80 font-bold">
-                                  {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].expectedOutput}
-                                </pre>
+                            <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
+                                    Input:
+                                  </span>
+                                  <pre className="p-2.5 bg-black/70 text-slate-200 rounded-lg text-xs whitespace-pre-wrap border border-slate-800/80 font-mono h-24 overflow-y-auto">
+                                    {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].input}
+                                  </pre>
+                                </div>
+                                <div>
+                                  <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">
+                                    Expected Output:
+                                  </span>
+                                  <pre className="p-2.5 bg-black/70 text-emerald-400 rounded-lg text-xs whitespace-pre-wrap border border-slate-800/80 font-mono font-bold h-24 overflow-y-auto">
+                                    {activeQuestion.codingConfig.sampleTestCases[selectedCaseIdx].expectedOutput}
+                                  </pre>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -1425,13 +1680,15 @@ export default function AttemptPage() {
                                   <span className="text-slate-400 font-mono text-[11px]">{runResult.timeMs} ms</span>
                                 )}
                               </div>
-                              <div>
-                                <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Input:</span>
-                                <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.input}</pre>
-                              </div>
-                              <div>
-                                <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
-                                <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.stdout || '(No output produced)'}</pre>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Input:</span>
+                                  <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-mono h-20 overflow-y-auto">{runResult.input}</pre>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-sans font-bold text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                  <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-mono h-20 overflow-y-auto">{runResult.stdout || '(No output produced)'}</pre>
+                                </div>
                               </div>
                               {runResult.stderr && (
                                 <div>
@@ -1486,27 +1743,29 @@ export default function AttemptPage() {
                                 ))}
                               </div>
 
-                              {/* Selected Case Breakdown */}
+                              {/* Selected Case Breakdown - 3 Column Grid */}
                               {runResult.cases[selectedCaseIdx] && (
                                 <div className="p-3.5 space-y-2.5 text-xs font-mono">
-                                  <div>
-                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
-                                    <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800">{runResult.cases[selectedCaseIdx].input}</pre>
-                                  </div>
-                                  <div>
-                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
-                                    <pre className={`p-2.5 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap border ${runResult.cases[selectedCaseIdx].passed ? 'text-emerald-400 border-emerald-900/40' : 'text-rose-400 border-rose-900/40'}`}>
-                                      {runResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
-                                    <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-bold">{runResult.cases[selectedCaseIdx].expectedOutput}</pre>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                    <div>
+                                      <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
+                                      <pre className="p-2.5 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-mono h-24 overflow-y-auto">{runResult.cases[selectedCaseIdx].input}</pre>
+                                    </div>
+                                    <div>
+                                      <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                      <pre className={`p-2.5 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap border font-mono h-24 overflow-y-auto ${runResult.cases[selectedCaseIdx].passed ? 'text-emerald-400 border-emerald-900/40' : 'text-rose-400 border-rose-900/40'}`}>
+                                        {runResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
+                                      </pre>
+                                    </div>
+                                    <div>
+                                      <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
+                                      <pre className="p-2.5 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap border border-slate-800 font-bold font-mono h-24 overflow-y-auto">{runResult.cases[selectedCaseIdx].expectedOutput}</pre>
+                                    </div>
                                   </div>
                                   {runResult.cases[selectedCaseIdx].stderr && (
                                     <div>
                                       <span className="font-sans font-bold text-[10px] text-rose-400 uppercase tracking-wider block mb-1">Standard Error:</span>
-                                      <pre className="p-2.5 bg-rose-950/40 text-rose-300 rounded-lg text-[11px] whitespace-pre-wrap border border-rose-900/60">{runResult.cases[selectedCaseIdx].stderr}</pre>
+                                      <pre className="p-2.5 bg-rose-950/40 text-rose-300 rounded-lg text-[11px] whitespace-pre-wrap border border-rose-900/60 font-mono max-h-24 overflow-y-auto">{runResult.cases[selectedCaseIdx].stderr}</pre>
                                     </div>
                                   )}
                                 </div>
@@ -1517,28 +1776,29 @@ export default function AttemptPage() {
                           {/* Case D: Submit Code Evaluation Result */}
                           {submitCodeResult && (
                             <div className="p-3.5 space-y-3">
-                              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs font-sans ${
+                              {/* Compact Status Banner */}
+                              <div className={`px-3 py-2 rounded-xl border flex items-center justify-between text-xs font-sans ${
                                 submitCodeResult.verdict === 'PASSED'
                                   ? 'bg-emerald-950/60 border-emerald-800 text-emerald-200'
                                   : 'bg-rose-950/60 border-rose-800 text-rose-200'
                               }`}>
                                 <div className="flex items-center gap-2">
                                   {submitCodeResult.verdict === 'PASSED' ? (
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                                   ) : (
-                                    <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+                                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
                                   )}
-                                  <div>
-                                    <p className="font-bold text-sm">
-                                      {submitCodeResult.verdict === 'PASSED' ? 'Accepted - Full Score' : submitCodeResult.verdict}
-                                    </p>
-                                    <p className="text-[11px] text-slate-300 mt-0.5">
-                                      {submitCodeResult.passedCases ?? 0} of {submitCodeResult.totalCases ?? 0} test cases passed
-                                    </p>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-bold text-xs uppercase tracking-wider">
+                                      {submitCodeResult.verdict === 'PASSED' ? 'Accepted (Full Score)' : submitCodeResult.verdict}
+                                    </span>
+                                    <span className="text-[11px] text-slate-300">
+                                      • {submitCodeResult.passedCases ?? 0} of {submitCodeResult.totalCases ?? 0} test cases passed
+                                    </span>
                                   </div>
                                 </div>
                                 <div className="text-right">
-                                  <span className="font-mono font-bold text-sm bg-black/40 px-3 py-1 rounded-lg text-[#D3FE4F] border border-slate-700">
+                                  <span className="font-mono font-bold text-xs bg-black/50 px-2.5 py-1 rounded-lg text-[#D3FE4F] border border-slate-700">
                                     Score: {submitCodeResult.score ?? submitCodeResult.earnedScore ?? 0} / {submitCodeResult.maxScore ?? activeQuestion?.marks ?? 20} pts
                                   </span>
                                 </div>
@@ -1581,20 +1841,20 @@ export default function AttemptPage() {
                                       </div>
 
                                       {!submitCodeResult.cases[selectedCaseIdx].isHidden ? (
-                                        <div className="space-y-2 pt-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
                                           <div>
                                             <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
-                                            <pre className="p-2 bg-black/80 text-slate-200 rounded text-[11px] whitespace-pre-wrap">{submitCodeResult.cases[selectedCaseIdx].input}</pre>
+                                            <pre className="p-2 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].input || '(Empty)'}</pre>
                                           </div>
                                           <div>
                                             <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
-                                            <pre className={`p-2 bg-black/80 rounded text-[11px] whitespace-pre-wrap ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            <pre className={`p-2 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80 ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
                                               {submitCodeResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
                                             </pre>
                                           </div>
                                           <div>
                                             <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
-                                            <pre className="p-2 bg-black/80 text-emerald-400 rounded text-[11px] whitespace-pre-wrap font-bold">{submitCodeResult.cases[selectedCaseIdx].expectedOutput}</pre>
+                                            <pre className="p-2 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap font-bold font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].expectedOutput || '(Empty)'}</pre>
                                           </div>
                                         </div>
                                       ) : (
@@ -1654,18 +1914,37 @@ export default function AttemptPage() {
           <button
             onClick={navigateToPrevQuestion}
             disabled={activeSectionIdx === 0 && activeQuestionIdx === 0}
-            className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-700 transition-all flex items-center gap-1"
+            className="px-3.5 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-700 transition-all flex items-center gap-1 cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>Previous</span>
           </button>
-          <button
-            onClick={handleSaveAndNext}
-            className="px-5 py-1.5 bg-[#3760F8] hover:bg-[#254EDB] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5"
-          >
-            <span>Save &amp; Next</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
+
+          {activeQuestionIdx < currentQuestions.length - 1 ? (
+            <button
+              onClick={handleSaveAndNext}
+              className="px-5 py-1.5 bg-[#3760F8] hover:bg-[#254EDB] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Save &amp; Next</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : activeSectionIdx < sections.length - 1 ? (
+            <button
+              onClick={handleSaveAndNext}
+              className="px-5 py-1.5 bg-[#3760F8] hover:bg-[#254EDB] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Next Section: {sections[activeSectionIdx + 1]?.title || 'Next'}</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              onClick={handleSaveAndNext}
+              className="px-5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4 text-white" />
+              <span>Review &amp; Submit</span>
+            </button>
+          )}
         </div>
       </footer>
 

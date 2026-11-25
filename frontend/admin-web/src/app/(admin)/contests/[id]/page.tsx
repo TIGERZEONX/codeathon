@@ -142,6 +142,8 @@ export default function ContestDetailPage() {
     leaderboardAnonymous: false,
     leaderboardTopN: 50,
     showTotalPointsEarned: true,
+    codeRunCooldownSeconds: 30,
+    maxCodeSubmissions: 3,
   });
 
   const openEditContest = () => {
@@ -166,6 +168,8 @@ export default function ContestDetailPage() {
       leaderboardAnonymous: contest.leaderboardConfig?.displayMode === 'anonymous',
       leaderboardTopN: contest.leaderboardConfig?.topN ?? 50,
       showTotalPointsEarned: contest.showTotalPointsEarned ?? true,
+      codeRunCooldownSeconds: contest.codeRunCooldownSeconds ?? 30,
+      maxCodeSubmissions: contest.maxCodeSubmissions ?? 3,
     });
     setShowEditModal(true);
   };
@@ -216,6 +220,8 @@ export default function ContestDetailPage() {
           freezeMinutesBeforeEnd: 0,
         },
         showTotalPointsEarned: editForm.showTotalPointsEarned,
+        codeRunCooldownSeconds: Number(editForm.codeRunCooldownSeconds) ?? 30,
+        maxCodeSubmissions: Number(editForm.maxCodeSubmissions) ?? 3,
       });
     },
     onSuccess: () => {
@@ -1078,6 +1084,46 @@ export default function ContestDetailPage() {
             <p className="text-[11px] text-slate-500 ml-6">
               When unchecked, candidate results page will confirm submission but conceal points and score details.
             </p>
+          </div>
+
+          {/* Coding Submission Limits & Execution Quotas */}
+          <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
+            <div>
+              <p className="text-xs font-bold text-slate-800">Coding Submission Limits &amp; Execution Quotas</p>
+              <p className="text-[11px] text-slate-500">Configure compiler run rate limits and submission quotas for algorithmic challenges.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="edit-codeRunCooldown" className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Code Run Cooling Time (seconds)
+                </label>
+                <Input
+                  id="edit-codeRunCooldown"
+                  type="number"
+                  min="0"
+                  max="300"
+                  value={String(editForm.codeRunCooldownSeconds ?? 30)}
+                  onChange={(e) => setEditForm((f) => ({ ...f, codeRunCooldownSeconds: Math.max(0, Number(e.target.value)) }))}
+                  placeholder="30"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Enforces cooldown between &quot;Run Code&quot; attempts (prevents API spamming).</p>
+              </div>
+              <div>
+                <label htmlFor="edit-maxCodeSubmissions" className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Max Code Submissions per Question
+                </label>
+                <Input
+                  id="edit-maxCodeSubmissions"
+                  type="number"
+                  min="1"
+                  max="50"
+                  value={String(editForm.maxCodeSubmissions ?? 3)}
+                  onChange={(e) => setEditForm((f) => ({ ...f, maxCodeSubmissions: Math.max(1, Number(e.target.value)) }))}
+                  placeholder="3"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Maximum number of times a candidate can submit code per challenge.</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">

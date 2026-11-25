@@ -69,9 +69,9 @@ export default function ResultsPage() {
   const leaderboard: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || [];
 
   const showTotalPointsEarned =
-    (attemptData as any)?.showTotalPointsEarned ??
-    (attemptData as any)?.contest?.showTotalPointsEarned ??
-    true;
+    (attemptData as any)?.showTotalPointsEarned !== false &&
+    (attemptData as any)?.contest?.showTotalPointsEarned !== false &&
+    (attemptData as any)?.contest?.resultVisibility !== 'hidden';
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans">
@@ -142,7 +142,7 @@ export default function ResultsPage() {
         </div>
 
         {/* Leaderboard */}
-        {leaderboard.length > 0 && (
+        {showTotalPointsEarned && leaderboard.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">

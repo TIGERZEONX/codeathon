@@ -241,9 +241,10 @@ export const reportsApi = {
 };
 
 export const submissionsApi = {
-  getLocked: async (contestId?: string) => {
-    const res = await apiClient.get('/submissions', { params: { contestId } });
-    return res.data.data;
+  getLocked: async (params?: { contestId?: string; search?: string; page?: number; limit?: number } | string) => {
+    const query = typeof params === 'string' ? { contestId: params } : params;
+    const res = await apiClient.get('/submissions', { params: query });
+    return res.data;
   },
   revoke: async (payload: { attemptId: string; reason: string; extensionMinutes?: number }) => {
     const res = await apiClient.post('/submissions/revoke', payload);

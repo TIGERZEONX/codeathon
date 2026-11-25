@@ -7,15 +7,16 @@ import { ATTEMPT_STATUS } from '@codeathon/shared';
 import { getSocketServer } from '../../sockets/index.js';
 
 export class SubmissionsService {
-  async getLockedSubmissions(contestId = null) {
+  async getLockedSubmissions(contestId = null, query = {}) {
     const allAttempts = await attemptRepository.find(contestId ? { contestId } : {});
+    // Only return currently submitted/locked attempts. Revoked or in-progress attempts are unlocked and must not appear in the locked list.
     const list = allAttempts.filter(
-      (a) => a.status === ATTEMPT_STATUS.SUBMITTED || a.status === ATTEMPT_STATUS.REVOKED_REOPENED || a.status === 'in_progress'
+      (a) => a.status === ATTEMPT_STATUS.SUBMITTED
     );
     const allParticipants = await participantRepository.find({});
     const allContests = await contestRepository.find({});
 
-    const enriched = list.map((a) => {
+    let enriched = list.map((a) => {
       const participant = allParticipants.find((p) =>
         String(p.id) === String(a.userId) ||
         String(p._id) === String(a.userId) ||
@@ -43,8 +44,34 @@ export class SubmissionsService {
       };
     });
 
+    if (query.search) {
+      const q = query.search.toLowerCase().trim();
+      enriched = enriched.filter(
+        (s) =>
+          (s.participantName && s.participantName.toLowerCase().includes(q)) ||
+          (s.rollNumber && s.rollNumber.toLowerCase().includes(q)) ||
+          (s.contestTitle && s.contestTitle.toLowerCase().includes(q))
+      );
+    }
+
     enriched.sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime());
-    return enriched;
+
+    const page = Math.max(1, parseInt(query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit || '10', 10)));
+    const skip = (page - 1) * limit;
+    const total = enriched.length;
+    const paginated = enriched.slice(skip, skip + limit);
+
+    return {
+      data: paginated,
+      items: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
   }
 
   async revokeSubmission(user, { attemptId, reason, extensionMinutes = 0 }) {

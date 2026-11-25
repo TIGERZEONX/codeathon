@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Badge } from '@/components/ui/Badge';
+import { Pagination } from '@/components/ui/Pagination';
 import * as XLSX from 'xlsx';
 import {
   Plus,
@@ -37,6 +38,8 @@ export default function ParticipantsPage() {
   const qc = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [csvText, setCsvText] = useState('');
@@ -47,10 +50,11 @@ export default function ParticipantsPage() {
   const [form, setForm] = useState({ rollNumber: '', name: '', email: '', department: '', password: '' });
 
   const { data, isLoading } = useQuery({
-    queryKey: ['participants', search],
-    queryFn: () => participantsApi.list({ search, limit: 100 }),
+    queryKey: ['participants', search, page, limit],
+    queryFn: () => participantsApi.list({ search, page, limit }),
   });
   const participants: Participant[] = (data as { data?: Participant[] })?.data || [];
+  const pagination = (data as any)?.pagination;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -126,7 +130,7 @@ export default function ParticipantsPage() {
   };
 
   const downloadSampleTemplate = () => {
-    const templateContent = 'rollNumber,name,email,department,password\nCS2026101,John Doe,john.doe@example.com,Computer Science,Hackpro@123\nCS2026102,Jane Smith,jane.smith@example.com,Information Technology,Hackpro@123\nCS2026103,Alex Kumar,alex.kumar@example.com,Electronics,Hackpro@123';
+    const templateContent = 'email,name,rollNumber,department\nstudent1@university.edu,John Doe,CS2026101,Computer Science\nstudent2@university.edu,,,\nstudent3@university.edu,,,';
     const blob = new Blob([templateContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -275,7 +279,10 @@ export default function ParticipantsPage() {
         <Input
           placeholder="Filter by roll number, name, or department..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
@@ -286,6 +293,20 @@ export default function ParticipantsPage() {
         rowKey={(p) => p._id}
         emptyMessage="No candidates registered yet. Click 'Add Candidate' or 'Bulk CSV'."
       />
+
+      {pagination && (
+        <Pagination
+          page={page}
+          totalPages={pagination.totalPages || 1}
+          total={pagination.total || 0}
+          limit={limit}
+          onPageChange={(p) => setPage(p)}
+          onLimitChange={(l) => {
+            setLimit(l);
+            setPage(1);
+          }}
+        />
+      )}
 
       {/* Create Modal */}
       <Modal open={showCreate} onClose={() => setShowCreate(false)} title="Register Single Candidate">
@@ -298,44 +319,39 @@ export default function ParticipantsPage() {
           )}
 
           <Input
-            label="Roll Number / ID *"
-            value={form.rollNumber}
-            onChange={(e) => setForm((f) => ({ ...f, rollNumber: e.target.value }))}
-            placeholder="e.g. CS2026003"
-            required
-          />
-          <Input
-            label="Full Name *"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. John Doe"
-            required
-          />
-          <Input
-            label="Email *"
+            label="Email Address *"
             type="email"
             value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             placeholder="student@university.edu"
             required
+            helperText="Only email ID is mandatory. Student attends test by entering their email and the contest batch code."
           />
           <Input
-            label="Department"
+            label="Full Name (Optional)"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. John Doe (auto-derived from email if empty)"
+          />
+          <Input
+            label="Roll Number / ID (Optional)"
+            value={form.rollNumber}
+            onChange={(e) => setForm((f) => ({ ...f, rollNumber: e.target.value }))}
+            placeholder="e.g. CS2026003 (auto-generated if empty)"
+          />
+          <Input
+            label="Department (Optional)"
             value={form.department}
             onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-            placeholder="e.g. Computer Science"
+            placeholder="e.g. Computer Science (default: General)"
           />
           <Input
-            label="Password"
+            label="Default Password (Optional)"
             type="password"
             value={form.password}
             onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-            placeholder="Min. 6 chars (default: Hackpro@123)"
-            helperText={
-              form.password && form.password.trim().length > 0 && form.password.trim().length < 6
-                ? 'Password must be at least 6 characters'
-                : "Leave blank to default to 'Hackpro@123'."
-            }
+            placeholder="Default: Hackpro@2026"
+            helperText="Default: 'Hackpro@2026'. Candidates can also log in directly with their email and contest batch code."
           />
           <div className="flex gap-2.5 justify-end pt-2">
             <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>
@@ -345,7 +361,7 @@ export default function ParticipantsPage() {
               size="sm"
               onClick={() => createMutation.mutate()}
               loading={createMutation.isPending}
-              disabled={!form.rollNumber.trim() || !form.name.trim() || !form.email.trim()}
+              disabled={!form.email.trim() || !form.email.includes('@')}
             >
               Add Candidate
             </Button>

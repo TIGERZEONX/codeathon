@@ -167,6 +167,7 @@ export default function DashboardPage() {
     const submittedCount = submitted.length;
 
     const scores = submitted
+      .filter((c: any) => c.showTotalPointsEarned !== false && c.resultVisibility !== 'hidden')
       .map((c: any) => c.attempt?.finalScore)
       .filter((s: any) => typeof s === 'number');
 
@@ -266,13 +267,12 @@ export default function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
         {/* Welcome Banner */}
-        <div className="bg-gradient-to-r from-[#0B0F19] via-[#111827] to-[#1E293B] rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-xl border border-slate-800">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-[#3760F8]/25 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-10 right-32 w-56 h-56 bg-[#D3FE4F]/20 rounded-full blur-2xl pointer-events-none" />
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white relative overflow-hidden shadow-lg border border-slate-700/80">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-[#3760F8]/15 rounded-full blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-            <div className="max-w-2xl">
-              <span className="inline-block text-xs font-semibold text-[#D3FE4F] uppercase tracking-wider mb-2">
+            <div className="max-w-2xl min-w-0">
+              <span className="inline-block text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">
                 Candidate Assessment Portal
               </span>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -284,20 +284,20 @@ export default function DashboardPage() {
             </div>
 
             {liveContest && (
-              <div className="bg-white/10 backdrop-blur-lg border border-white/20 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 lg:max-w-sm">
-                <div>
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#D3FE4F]">
-                    <span className="w-2 h-2 rounded-full bg-[#D3FE4F] animate-pulse" />
+              <div className="bg-slate-800/80 backdrop-blur-md border border-slate-700 p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 lg:max-w-sm">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                     <span>ASSESSMENT ACTIVE</span>
                   </div>
-                  <h4 className="text-sm font-bold text-white mt-1 line-clamp-1">{liveContest.title}</h4>
+                  <h4 className="text-sm font-bold text-white mt-1 truncate">{liveContest.title}</h4>
                   <p className="text-[11px] text-slate-300 mt-0.5">{liveContest.durationMinutes} Minutes</p>
                 </div>
                 <button
                   onClick={() => handleEnterContest(liveContest)}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#D3FE4F] text-[#0B0F19] hover:bg-[#C2F038] font-bold text-xs rounded-xl shadow-lg transition-all active:scale-95 shrink-0"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#3760F8] hover:bg-[#254EDB] text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 shrink-0"
                 >
-                  <Play className="w-3.5 h-3.5 fill-[#0B0F19]" />
+                  <Play className="w-3.5 h-3.5 fill-white" />
                   <span>Enter Assessment</span>
                 </button>
               </div>
@@ -456,11 +456,18 @@ export default function DashboardPage() {
                               <Clock className="w-3.5 h-3.5 text-slate-400" />
                               {contest.durationMinutes} mins
                             </span>
-                            {isSubmitted && contest.attempt?.finalScore != null && (
-                              <span className="flex items-center gap-1 font-bold text-[#3760F8]">
-                                <Trophy className="w-3.5 h-3.5" />
-                                Score: {contest.attempt.finalScore} pts
-                              </span>
+                            {isSubmitted && (
+                              contest.showTotalPointsEarned !== false && contest.resultVisibility !== 'hidden' && contest.attempt?.finalScore != null ? (
+                                <span className="flex items-center gap-1 font-bold text-[#3760F8]">
+                                  <Trophy className="w-3.5 h-3.5" />
+                                  Score: {contest.attempt.finalScore} pts
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Evaluation Recorded
+                                </span>
+                              )
                             )}
                           </div>
                         </div>
@@ -479,7 +486,13 @@ export default function DashboardPage() {
                                 : 'bg-slate-100 text-slate-500 cursor-not-allowed'
                             }`}
                           >
-                            <span>{isSubmitted ? 'View Results' : isLive || isInProgress ? 'Start Test' : 'Upcoming'}</span>
+                            <span>
+                              {isSubmitted
+                                ? (contest.showTotalPointsEarned !== false && contest.resultVisibility !== 'hidden' ? 'View Results' : 'View Summary')
+                                : isLive || isInProgress
+                                ? 'Start Test'
+                                : 'Upcoming'}
+                            </span>
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -494,7 +507,7 @@ export default function DashboardPage() {
           {/* Beside That: Candidate Profile Card (4 cols) */}
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-sm relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#3760F8] via-[#60A5FA] to-[#D3FE4F]" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-[#3760F8]" />
 
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -507,12 +520,12 @@ export default function DashboardPage() {
               </div>
 
               <div className="pt-5 flex flex-col items-center text-center">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#3760F8] to-[#1E293B] flex items-center justify-center text-white text-xl font-extrabold shadow-md ring-4 ring-[#3760F8]/15 mb-3.5">
+                <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center text-white text-lg font-bold shadow-sm ring-4 ring-slate-100 mb-3 shrink-0">
                   {initials}
                 </div>
 
-                <h3 className="text-lg font-bold text-slate-900 tracking-tight">{currentUser?.name}</h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">{currentUser?.email}</p>
+                <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight break-words max-w-full px-2">{currentUser?.name}</h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5 break-all max-w-full px-2" title={currentUser?.email}>{currentUser?.email}</p>
 
                 <div className="mt-3.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/90 text-xs text-slate-800 font-mono">
                   <span className="text-slate-400 font-sans text-[11px]">Roll No:</span>
@@ -520,7 +533,7 @@ export default function DashboardPage() {
                   <button
                     onClick={copyRollNumber}
                     title="Copy candidate ID"
-                    className="p-1 rounded text-slate-400 hover:text-[#3760F8] hover:bg-slate-200/60 transition-colors ml-1"
+                    className="p-1 rounded text-slate-400 hover:text-[#3760F8] hover:bg-slate-200/60 transition-colors ml-1 cursor-pointer"
                   >
                     {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
@@ -529,9 +542,9 @@ export default function DashboardPage() {
 
               <div className="mt-6 pt-5 border-t border-slate-100 space-y-3 text-xs">
                 {currentUser?.department && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500">Department:</span>
-                    <span className="font-semibold text-slate-900 text-right">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-slate-500 shrink-0">Department:</span>
+                    <span className="font-semibold text-slate-900 text-right break-words min-w-0 max-w-[65%]">
                       {currentUser.department}
                     </span>
                   </div>

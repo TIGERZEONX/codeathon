@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { PillTabs } from '@/components/ui/PillTabs';
+import { Pagination } from '@/components/ui/Pagination';
 import { useAdminAuthStore } from '@/store/adminAuthStore';
 import {
   ShieldCheck,
@@ -51,14 +52,17 @@ export default function SubmissionsPage() {
   const [extensionMin, setExtensionMin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'score_desc' | 'score_asc' | 'date_desc' | 'name_asc'>('score_desc');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['submissions'],
-    queryFn: () => submissionsApi.getLocked(),
+    queryKey: ['submissions', search, page, limit],
+    queryFn: () => submissionsApi.getLocked({ search, page, limit }),
   });
   const rawSubmissions: Submission[] = Array.isArray(data) ? data : (data as any)?.data || [];
+  const pagination = (data as any)?.pagination;
 
   const revokeMutation = useMutation({
     mutationFn: () => {
@@ -361,7 +365,10 @@ export default function SubmissionsPage() {
               type="text"
               placeholder="Search candidate or roll..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-9 pr-3.5 py-1.5 text-xs border border-slate-200/90 rounded-xl focus:ring-2 focus:ring-[#3760F8]/20 focus:outline-none bg-slate-50/50 hover:bg-white transition-all min-h-[36px]"
             />
           </div>
@@ -391,6 +398,20 @@ export default function SubmissionsPage() {
         rowKey={(s) => s._id || s.id || s.attemptId}
         emptyMessage="No matching assessment submissions found."
       />
+
+      {pagination && (
+        <Pagination
+          page={page}
+          totalPages={pagination.totalPages || 1}
+          total={pagination.total || 0}
+          limit={limit}
+          onPageChange={(p) => setPage(p)}
+          onLimitChange={(l) => {
+            setLimit(l);
+            setPage(1);
+          }}
+        />
+      )}
 
       {/* Revoke Modal */}
       <Modal open={!!revokeModal} onClose={() => setRevokeModal(null)} title="Revoke Locked Submission">

@@ -2,10 +2,12 @@ import { attendanceRepository } from './attendance.repository.js';
 import { participantRepository } from '../participants/participants.repository.js';
 import { teamRepository } from '../teams/teams.repository.js';
 import { assignmentRepository } from '../assignments/assignments.repository.js';
+import { contestRepository } from '../contests/contests.repository.js';
 import { toCsv } from '../../utils/csv.js';
 
 export class AttendanceService {
   async getAttendanceByContest(contestId, query = {}) {
+    const contest = await contestRepository.findById(contestId);
     const records = await attendanceRepository.findByContest(contestId);
     const assignments = await assignmentRepository.findByContest(contestId);
     const allParticipants = await participantRepository.find({});
@@ -37,9 +39,12 @@ export class AttendanceService {
         userId: pId,
         participantId: pId,
         participantName: participant?.name || record?.userName || 'Candidate',
+        email: participant?.email || record?.userEmail || '—',
         rollNumber: participant?.rollNumber || record?.rollNumber || '—',
         name: participant?.name || record?.userName || 'Candidate',
         department: participant?.department || '—',
+        contestTitle: contest?.title || 'Assessment Contest',
+        batchCode: contest?.batchCode || '—',
         teamId: team?.id || null,
         teamName: team?.name || undefined,
         status: record?.status || 'absent',
@@ -85,28 +90,83 @@ export class AttendanceService {
       teamGroups[tKey].students.push(item);
     });
 
+    const totalFiltered = filtered.length;
+    let paginatedRecords = filtered;
+    let pagination = null;
+
+    if (query.page || query.limit) {
+      const page = Math.max(1, parseInt(query.page || '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(query.limit || '15', 10)));
+      const skip = (page - 1) * limit;
+      paginatedRecords = filtered.slice(skip, skip + limit);
+      pagination = {
+        page,
+        limit,
+        total: totalFiltered,
+        totalPages: Math.ceil(totalFiltered / limit) || 1,
+      };
+    }
+
     return {
       totalAssigned: roster.length,
       totalPresent: roster.filter((r) => r.status === 'present' || r.status === 'completed').length,
       totalSubmitted: roster.filter((r) => r.status === 'completed').length,
-      records: filtered,
+      records: paginatedRecords,
+      totalRecords: totalFiltered,
+      pagination: pagination || {
+        page: 1,
+        limit: totalFiltered,
+        total: totalFiltered,
+        totalPages: 1,
+      },
       teams: Object.values(teamGroups),
     };
   }
 
   async exportCsv(contestId) {
     const data = await this.getAttendanceByContest(contestId);
-    return toCsv(data.records, [
-      'rollNumber',
-      'name',
-      'department',
-      'teamName',
-      'status',
-      'loginStatus',
-      'testStartTimestamp',
-      'submitTimestamp',
-      'durationMinutes',
-    ]);
+    const contest = await contestRepository.findById(contestId);
+
+    const formattedRecords = (data.records || []).map((r, index) => {
+      const formatTime = (ts) => {
+        if (!ts) return '—';
+        try {
+          const d = new Date(ts);
+          return isNaN(d.getTime()) ? '—' : d.toLocaleString('en-US', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'medium' });
+        } catch {
+          return '—';
+        }
+      };
+
+      const resolvedStatus =
+        r.status === 'completed'
+          ? 'Submitted'
+          : r.status === 'present'
+          ? 'Present / In-Progress'
+          : 'Absent';
+
+      return {
+        'S.No': index + 1,
+        'Candidate Name': r.name || r.participantName || 'Candidate',
+        'Email Address': r.email || '—',
+        'Roll Number': r.rollNumber || '—',
+        'Department': r.department || '—',
+        'Contest Title': contest?.title || r.contestTitle || 'Assessment Contest',
+        'Batch Code': contest?.batchCode || r.batchCode || '—',
+        'Team Allocation': r.teamName || 'Individual',
+        'Attendance Status': resolvedStatus,
+        'Login Status': r.loginStatus || (r.status !== 'absent' ? 'Logged In' : 'Not Logged In'),
+        'Test Start Time': formatTime(r.startedAt || r.testStartTimestamp),
+        'Submission Time': formatTime(r.submittedAt || r.submitTimestamp),
+        'Duration (Minutes)': r.durationMinutes || 0,
+      };
+    });
+
+    if (formattedRecords.length === 0) {
+      return 'S.No,Candidate Name,Email Address,Roll Number,Department,Contest Title,Batch Code,Team Allocation,Attendance Status,Login Status,Test Start Time,Submission Time,Duration (Minutes)\n';
+    }
+
+    return toCsv(formattedRecords);
   }
 
   async markAttendance(contestId, userId, status = 'present') {

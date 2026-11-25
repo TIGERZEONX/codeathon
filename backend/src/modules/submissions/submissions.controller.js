@@ -3,8 +3,12 @@ import { successResponse } from '../../utils/response.js';
 
 export class SubmissionsController {
   async getLocked(req, res) {
-    const list = await submissionsService.getLockedSubmissions(req.query.contestId);
-    return successResponse(res, list);
+    const result = await submissionsService.getLockedSubmissions(req.query.contestId, req.query);
+    return res.status(200).json({
+      success: true,
+      data: result.data || result,
+      pagination: result.pagination || null,
+    });
   }
 
   async revoke(req, res) {
