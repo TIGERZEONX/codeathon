@@ -22,6 +22,9 @@ export const connectDB = async () => {
     const conn = await mongoose.connect(env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
       connectTimeoutMS: 5000,
+      maxPoolSize: 50,
+      minPoolSize: 5,
+      maxIdleTimeMS: 30000,
     });
     isConnected = true;
     activeUri = env.MONGO_URI;
@@ -41,6 +44,8 @@ export const connectDB = async () => {
         const localConn = await mongoose.connect(localUri, {
           serverSelectionTimeoutMS: 3000,
           connectTimeoutMS: 3000,
+          maxPoolSize: 50,
+          minPoolSize: 5,
         });
         isConnected = true;
         activeUri = localUri;

@@ -32,7 +32,7 @@ describe('Auth Module & RBAC', () => {
         .post('/api/v1/auth/login')
         .send({
           identifier: 'CS2026001',
-          password: 'Student@2026!',
+          password: env.DEFAULT_STUDENT_PASSWORD,
         });
 
       expect(res.status).toBe(200);

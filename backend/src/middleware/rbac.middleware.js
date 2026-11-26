@@ -96,17 +96,16 @@ export const requireSuperAdmin = () => {
       return next(ApiError.unauthorized('Authentication required'));
     }
     const roleStr = String(user.role || '').toLowerCase();
-    const emailStr = String(user.email || '').toLowerCase();
+    const roleNameStr = String(user.roleName || '').toLowerCase();
     if (
       roleStr === 'super_admin' ||
       roleStr === 'superadmin' ||
-      roleStr === 'admin' ||
       user.isSuperAdmin === true ||
-      String(user.roleName || '').toLowerCase().includes('super') ||
-      String(user.roleName || '').toLowerCase().includes('admin')
+      roleNameStr === 'super admin' ||
+      roleNameStr === 'super_admin'
     ) {
       return next();
     }
-    return next(ApiError.forbidden('Administrative privilege required', 'ADMIN_REQUIRED'));
+    return next(ApiError.forbidden('Super Admin privilege required', 'SUPER_ADMIN_REQUIRED'));
   };
 };

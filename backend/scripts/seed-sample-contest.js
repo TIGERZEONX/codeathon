@@ -6,6 +6,7 @@ import { assignmentsService } from '../src/modules/assignments/assignments.servi
 import { teamsService } from '../src/modules/teams/teams.service.js';
 import { CONTEST_STATUS } from '@codeathon/shared';
 import { logger } from '../src/utils/logger.js';
+import { env } from '../src/config/env.js';
 
 export const seedSampleContest = async () => {
   try {
@@ -308,11 +309,12 @@ solve();
     });
 
     // 4. Seed Participants
+    const defaultStudentPassword = env.DEFAULT_STUDENT_PASSWORD || undefined;
     const p1 = await participantsService.createParticipant({
       rollNumber: 'CS2026001',
       name: 'Alex Johnson',
       email: 'student1@hackpro.dev',
-      password: 'Student@2026!',
+      password: defaultStudentPassword,
       department: 'Computer Science',
     });
 
@@ -320,7 +322,7 @@ solve();
       rollNumber: 'CS2026002',
       name: 'Priya Sharma',
       email: 'student2@hackpro.dev',
-      password: 'Student@2026!',
+      password: defaultStudentPassword,
       department: 'Information Technology',
     });
 

@@ -18,7 +18,7 @@ describe('Student Attempt Lifecycle & Submission Lock', () => {
       .post('/api/v1/auth/login')
       .send({
         identifier: 'CS2026001',
-        password: 'Student@2026!',
+        password: env.DEFAULT_STUDENT_PASSWORD,
       });
     studentToken = studentLogin.body.data.accessToken;
 
@@ -141,7 +141,7 @@ describe('Student Attempt Lifecycle & Submission Lock', () => {
 
     expect(revokeRes.status).toBe(200);
     expect(revokeRes.body.success).toBe(true);
-    expect(revokeRes.body.data.status).toBe('revoked_reopened');
+    expect(revokeRes.body.data.status).toBe('in_progress');
 
     // Student can now re-enter and save answers again!
     const stateRes = await request(app)

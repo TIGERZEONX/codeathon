@@ -76,10 +76,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [initAuth]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isLoading, isAuthenticated, router]);
 
   const logoutMutation = useMutation({
     mutationFn: () => adminAuthApi.logout(),

@@ -13,6 +13,14 @@ export const errorMiddleware = (err, req, res, next) => {
     code = err.code;
     message = err.message;
     details = err.details;
+  } else if (err.type === 'entity.too.large' || err.status === 413 || err.statusCode === 413) {
+    statusCode = 413;
+    code = 'PAYLOAD_TOO_LARGE';
+    message = 'Request payload exceeds maximum allowed size';
+  } else if (err instanceof SyntaxError && (err.status === 400 || err.statusCode === 400) && 'body' in err) {
+    statusCode = 400;
+    code = 'INVALID_JSON';
+    message = 'Malformed JSON request body';
   } else if (err.name === 'ValidationError') {
     statusCode = 400;
     code = 'VALIDATION_ERROR';

@@ -85,7 +85,7 @@ function AttemptBadge({ status }: { status?: string }) {
 export default function DashboardPage() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { user, clearAuth, isAuthenticated, initAuth } = useAuthStore();
+  const { user, accessToken, clearAuth, isAuthenticated, initAuth } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'all' | 'live' | 'upcoming' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(false);
@@ -134,7 +134,10 @@ export default function DashboardPage() {
 
   // Real-time WebSocket sync: update assessments instantly when admin changes status
   useEffect(() => {
+    if (!accessToken) return;
     const socket = getSocket();
+    socket.auth = { token: accessToken };
+    if (!socket.connected) socket.connect();
     const handleStatusChange = () => {
       qc.invalidateQueries({ queryKey: ['assigned-contests'] });
     };
@@ -142,7 +145,7 @@ export default function DashboardPage() {
     return () => {
       socket.off('contest:status-changed', handleStatusChange);
     };
-  }, [qc]);
+  }, [qc, accessToken]);
 
   const handleLogout = async () => {
     try {
@@ -352,6 +355,7 @@ export default function DashboardPage() {
                   <form onSubmit={handleJoinBatch} className="flex items-center gap-1.5">
                     <input
                       type="text"
+                      aria-label="Contest batch code"
                       placeholder="Enter Batch Code"
                       value={batchCodeInput}
                       onChange={(e) => setBatchCodeInput(e.target.value)}
@@ -370,6 +374,7 @@ export default function DashboardPage() {
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
+                      aria-label="Search assessments"
                       placeholder="Search assessments..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}

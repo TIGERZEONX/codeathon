@@ -63,14 +63,14 @@ export default function ParticipantsPage() {
       setErrorMsg(null);
       const trimmedPassword = form.password.trim();
       if (trimmedPassword && trimmedPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters (or leave blank to use default Hackpro@123)');
+        throw new Error('Password must be at least 6 characters (or leave blank to auto-assign)');
       }
       return participantsApi.create({
         rollNumber: form.rollNumber.trim(),
         name: form.name.trim(),
         email: form.email.trim(),
         department: form.department.trim() || 'Computer Science',
-        password: trimmedPassword || 'Hackpro@123',
+        ...(trimmedPassword ? { password: trimmedPassword } : {}),
       });
     },
     onSuccess: () => {

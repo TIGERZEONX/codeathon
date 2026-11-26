@@ -1,10 +1,18 @@
+import crypto from 'crypto';
 import { participantRepository } from './participants.repository.js';
 import { userRepository } from '../users/users.repository.js';
 import { teamRepository } from '../teams/teams.repository.js';
 import { hashPassword } from '../../utils/password.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { env } from '../../config/env.js';
 import { SYSTEM_ROLES } from '@codeathon/shared';
 import { parseCsv } from '../../utils/csv.js';
+
+const sanitizeParticipant = (p) => {
+  if (!p) return p;
+  const { plainPasswordPreview, password, ...safe } = p;
+  return safe;
+};
 
 export class ParticipantsService {
   async getAllParticipants(options = {}) {
@@ -21,13 +29,13 @@ export class ParticipantsService {
     if (options.teamId) {
       list = list.filter((p) => p.teamId === options.teamId);
     }
-    return list;
+    return list.map(sanitizeParticipant);
   }
 
   async getParticipantById(id) {
     const item = await participantRepository.findById(id);
     if (!item) throw ApiError.notFound('Participant not found');
-    return item;
+    return sanitizeParticipant(item);
   }
 
   async createParticipant(data) {
@@ -53,11 +61,14 @@ export class ParticipantsService {
     if (existingEmail) {
       const existingParticipant = await participantRepository.findByEmail(emailLower);
       if (existingParticipant) {
-        return existingParticipant;
+        return sanitizeParticipant(existingParticipant);
       }
     }
 
-    const plainPassword = data.password && data.password.trim().length >= 6 ? data.password.trim() : 'Hackpro@2026';
+    const plainPassword =
+      data.password && data.password.trim().length >= 6
+        ? data.password.trim()
+        : env.DEFAULT_STUDENT_PASSWORD || crypto.randomBytes(9).toString('base64url');
     const hashedPassword = await hashPassword(plainPassword);
 
     // Create participant user login
@@ -81,10 +92,9 @@ export class ParticipantsService {
       department: data.department || 'General',
       yearOrSemester: data.yearOrSemester || 'Final Year',
       teamId: data.teamId || null,
-      plainPasswordPreview: plainPassword,
     });
 
-    return participant;
+    return sanitizeParticipant(participant);
   }
 
   async bulkImportCsv(csvString) {
@@ -119,7 +129,7 @@ export class ParticipantsService {
         const name = (row.name || row['Name'] || row.fullName || row['Full Name'] || '').trim();
         const rollNumber = (row.rollNumber || row['Roll Number'] || row.roll_no || row['Roll No'] || row.id || '').trim();
         const department = (row.department || row['Department'] || 'General').trim();
-        const password = (row.password || row['Password'] || 'Hackpro@2026').trim();
+        const password = (row.password || row['Password'] || '').trim();
 
         await this.createParticipant({
           email,
@@ -152,7 +162,7 @@ export class ParticipantsService {
       });
     }
 
-    return participantRepository.findById(id);
+    return sanitizeParticipant(await participantRepository.findById(id));
   }
 
   async deleteParticipant(id) {

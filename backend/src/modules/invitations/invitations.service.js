@@ -17,7 +17,7 @@ export class InvitationsService {
     const cleanName = candidateName || 'Candidate';
     const cleanContest = contestTitle || 'Technical Assessment';
     const cleanBatch = batchCode || '—';
-    const cleanUrl = portalUrl || 'http://localhost:3000';
+    const cleanUrl = portalUrl || env.STUDENT_PORTAL_URL;
     const cleanDuration = Number(durationMinutes) || 60;
     const year = new Date().getFullYear();
 
@@ -240,6 +240,10 @@ export class InvitationsService {
     const apiKey = env.BREVO_API_KEY;
     const senderEmail = env.BREVO_SENDER_EMAIL;
 
+    if (!apiKey || !senderEmail) {
+      throw ApiError.badRequest('Email service is not configured. Set BREVO_API_KEY and BREVO_SENDER_EMAIL in backend/.env.');
+    }
+
     const htmlContent = this.generateInvitationHtml({
       candidateName: toName,
       email: toEmail,
@@ -357,7 +361,7 @@ export class InvitationsService {
         title: contest.title,
         batchCode: contest.batchCode,
         durationMinutes: contest.durationMinutes,
-        portalUrl: env.STUDENT_PORTAL_URL || 'http://localhost:3000',
+        portalUrl: env.STUDENT_PORTAL_URL,
       },
       stats: {
         total,
@@ -388,7 +392,7 @@ export class InvitationsService {
       throw ApiError.badRequest('No eligible participants found to send invitations.');
     }
 
-    const portalUrl = env.STUDENT_PORTAL_URL || 'http://localhost:3000';
+    const portalUrl = env.STUDENT_PORTAL_URL;
     let successCount = 0;
     let failCount = 0;
     const results = [];

@@ -110,9 +110,11 @@ Postman collection: `backend/postman/codeathon.postman_collection.json`
 | Variable             | Default                      | Description              |
 |----------------------|------------------------------|--------------------------|
 | `PORT`               | `5000`                       | Server port              |
-| `MONGODB_URI`        | (optional)                   | MongoDB connection string |
-| `REDIS_URL`          | (optional)                   | Redis connection string  |
-| `JWT_SECRET`         | (required)                   | JWT signing secret       |
+| `MONGO_URI`          | (required)                   | MongoDB connection string |
+| `REDIS_URL`          | `redis://localhost:6379`     | Redis connection string  |
+| `JWT_ACCESS_SECRET`  | (required)                   | JWT access signing secret |
+| `JWT_REFRESH_SECRET` | (required)                   | JWT refresh signing secret |
+| `BREVO_API_KEY`      | (optional)                   | Brevo SMTP API key       |
 | `NODE_ENV`           | `development`                | Environment              |
 
 ### Student Web (`frontend/student-web/.env.local`)

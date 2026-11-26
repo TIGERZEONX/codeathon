@@ -140,6 +140,7 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <div className="w-64">
             <Select
+              aria-label="Filter analytics by contest"
               selectSize="sm"
               value={selectedContest}
               onChange={(e) => setSelectedContest(e.target.value)}

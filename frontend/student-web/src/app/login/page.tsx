@@ -52,7 +52,8 @@ export default function LoginPage() {
       // Role-based portal navigation
       if (result.targetPortal === 'admin' || (result.user.role !== 'student' && result.user.role !== 'candidate')) {
         const redirect = result.redirectPath || '/dashboard';
-        const adminUrl = `http://localhost:3001/login?autoToken=${encodeURIComponent(result.accessToken)}&userData=${encodeURIComponent(JSON.stringify(result.user))}&redirect=${encodeURIComponent(redirect)}`;
+        const adminBaseUrl = process.env.NEXT_PUBLIC_ADMIN_PORTAL_URL ?? 'http://localhost:3001';
+        const adminUrl = `${adminBaseUrl}/login?autoToken=${encodeURIComponent(result.accessToken)}&userData=${encodeURIComponent(JSON.stringify(result.user))}&redirect=${encodeURIComponent(redirect)}`;
         window.location.href = adminUrl;
         return;
       }
@@ -71,7 +72,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans relative">
+    <main className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans relative">
       <div className="w-full max-w-[420px] bg-white rounded-2xl border border-slate-200/90 shadow-[0_8px_30px_rgb(0,0,0,0.06)] p-8 sm:p-10 space-y-7 relative z-10">
         
         {/* Brand Logo & Header */}
@@ -143,8 +144,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-                tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -171,6 +172,6 @@ export default function LoginPage() {
           </button>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

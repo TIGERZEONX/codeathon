@@ -24,6 +24,7 @@ export class BaseRepository {
     this.items = new Map(); // id -> item (fast memory cache)
     this.dataDir = path.resolve(process.cwd(), 'data');
     this.filePath = path.join(this.dataDir, `${this.name}.json`);
+    this._saveTimer = null;
 
     repositoryRegistry.add(this);
 
@@ -61,6 +62,31 @@ export class BaseRepository {
   }
 
   saveToFile() {
+    // Skip blocking local disk writes when MongoDB is actively connected (avoids event-loop stalls at 1,000+ users)
+    if (mongoose.connection && mongoose.connection.readyState === 1 && process.env.NODE_ENV !== 'test') {
+      return;
+    }
+    if (process.env.NODE_ENV === 'test') {
+      this._writeFileSyncNow();
+      return;
+    }
+    // Debounce non-blocking async file persistence in in-memory fallback mode
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(async () => {
+      this._saveTimer = null;
+      try {
+        if (!fs.existsSync(this.dataDir)) {
+          await fs.promises.mkdir(this.dataDir, { recursive: true });
+        }
+        const list = Array.from(this.items.values());
+        await fs.promises.writeFile(this.filePath, JSON.stringify(list, null, 2), 'utf-8');
+      } catch (err) {
+        logger.warn(`Could not save local data for ${this.name}: ${err.message}`);
+      }
+    }, 200);
+  }
+
+  _writeFileSyncNow() {
     try {
       if (!fs.existsSync(this.dataDir)) {
         fs.mkdirSync(this.dataDir, { recursive: true });

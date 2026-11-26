@@ -75,7 +75,7 @@ export const contestApi = {
     contestId: string,
     payload: { questionId: string; code: string; language: string; customInput?: string }
   ) => {
-    const res = await apiClient.post(`/student/contests/${contestId}/run`, payload);
+    const res = await apiClient.post(`/student/contests/${contestId}/run`, payload, { timeout: 45000 });
     return res.data.data;
   },
 
@@ -83,7 +83,7 @@ export const contestApi = {
     contestId: string,
     payload: { questionId: string; code: string; language: string }
   ) => {
-    const res = await apiClient.post(`/student/contests/${contestId}/submit-code`, payload);
+    const res = await apiClient.post(`/student/contests/${contestId}/submit-code`, payload, { timeout: 45000 });
     return res.data.data;
   },
 

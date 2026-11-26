@@ -43,7 +43,7 @@ export class ParticipantsController {
 
   async exportCsv(req, res) {
     const all = await participantsService.getAllParticipants();
-    const csvData = toCsv(all, ['rollNumber', 'name', 'email', 'department', 'plainPasswordPreview']);
+    const csvData = toCsv(all, ['rollNumber', 'name', 'email', 'department']);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="participants.csv"');
     return res.send(csvData);

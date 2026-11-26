@@ -9,6 +9,7 @@ import { isClientRunnable, runCodeInBrowser } from '@/lib/clientRunner';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Spinner } from '@/components/ui/Spinner';
 import { CodeEditor } from '@/components/ui/CodeEditor';
 import { AttemptSkeleton } from '@/components/ui/Skeleton';
@@ -238,6 +239,7 @@ export default function AttemptPage() {
   // Drawer / Modals
   const [showQuestionDrawer, setShowQuestionDrawer] = useState(false);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [showQuestionPaperModal, setShowQuestionPaperModal] = useState(false);
   const [isLangOpen, setIsLangOpen] = useState(false);
@@ -286,6 +288,7 @@ export default function AttemptPage() {
   // Timer Setup
   const [remaining, setRemaining] = useState<number>(0);
   const expiredRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     if (attempt?.remainingSeconds && attempt.remainingSeconds > 0) {
@@ -295,8 +298,22 @@ export default function AttemptPage() {
 
   // Finish Attempt Mutation
   const finishMutation = useMutation({
-    mutationFn: () => contestApi.finishAttempt(contestId),
-    onSuccess: () => router.push(`/contest/${contestId}/results`),
+    mutationFn: () => {
+      isSubmittingRef.current = true;
+      return contestApi.finishAttempt(contestId);
+    },
+    onSuccess: () => {
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      router.push(`/contest/${contestId}/results`);
+    },
+    onError: () => {
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      router.push(`/contest/${contestId}/results`);
+    },
   });
 
   const handleExpire = useCallback(() => {
@@ -420,6 +437,7 @@ export default function AttemptPage() {
       const currentAttId = attempt?.id || (attempt as any)?._id;
       if (!data?.attemptId || !currentAttId || data.attemptId === currentAttId) {
         queryClient.invalidateQueries({ queryKey: ['attempt-state', contestId] });
+        hasInitializedAnswersRef.current = false;
         setAnswers({});
         setSubmissionCounts({});
         setRunResult(null);
@@ -436,13 +454,14 @@ export default function AttemptPage() {
     };
   }, [contestId, attempt?.id, queryClient]);
 
-  // Initialize saved answers from backend
+  const hasInitializedAnswersRef = useRef(false);
+
+  // Initialize saved answers from backend (once when attempt data loads)
   useEffect(() => {
+    if (hasInitializedAnswersRef.current) return;
     if (attempt?.savedAnswers && Array.isArray(attempt.savedAnswers)) {
-      if (attempt.savedAnswers.length === 0) {
-        setAnswers({});
-        setMarkedForReview(new Set());
-      } else if (Object.keys(answers).length === 0) {
+      hasInitializedAnswersRef.current = true;
+      if (attempt.savedAnswers.length > 0) {
         const initialAnswers: Record<string, AnswerState> = {};
         const initialReviews = new Set<string>();
 
@@ -464,7 +483,7 @@ export default function AttemptPage() {
         setMarkedForReview(initialReviews);
       }
     }
-  }, [attempt?.savedAnswers, answers]);
+  }, [attempt?.savedAnswers]);
 
   // Autosave answers every 25 seconds
   useEffect(() => {
@@ -569,6 +588,8 @@ export default function AttemptPage() {
       const isNowFullscreen = !!document.fullscreenElement;
       setIsFullscreen(isNowFullscreen);
 
+      if (isSubmittingRef.current || expiredRef.current) return;
+
       if (cfg.enforceFullscreen && !isNowFullscreen) {
         setNeedsFullscreenGate(true);
         logViolation('fullscreen_exit', 'Exited fullscreen examination mode.');
@@ -576,12 +597,14 @@ export default function AttemptPage() {
     };
 
     const onVisibilityChange = () => {
+      if (isSubmittingRef.current || expiredRef.current) return;
       if (document.hidden && cfg.blockTabSwitch) {
         logViolation('tab_switch', 'Switched away to another browser tab.');
       }
     };
 
     const onWindowBlur = () => {
+      if (isSubmittingRef.current || expiredRef.current) return;
       if (cfg.blockTabSwitch) {
         logViolation('window_blur', 'Window lost focus or application switch detected.');
       }
@@ -701,6 +724,18 @@ export default function AttemptPage() {
         isMarkedForReview: false,
       })
       .catch(() => {});
+  };
+
+  // Reset Starter Code
+  const handleResetCode = () => {
+    setShowResetConfirm(false);
+    if (!qId) return;
+    const lang = currentAnswer?.language || 'python';
+    const starter = activeQuestion?.codingConfig?.starterCode?.[lang] || DEFAULT_STARTER_CODE[lang] || '';
+    setAnswers((prev) => ({
+      ...prev,
+      [qId]: { ...prev[qId], code: starter },
+    }));
   };
 
   // Navigation & Save Helpers
@@ -1453,16 +1488,7 @@ export default function AttemptPage() {
                   {/* Reset Starter Code */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm('Reset code to initial problem template? Your unsaved edits will be replaced.')) {
-                        const lang = currentAnswer?.language || 'python';
-                        const starter = activeQuestion?.codingConfig?.starterCode?.[lang] || DEFAULT_STARTER_CODE[lang] || '';
-                        setAnswers((prev) => ({
-                          ...prev,
-                          [qId]: { ...prev[qId], code: starter },
-                        }));
-                      }
-                    }}
+                    onClick={() => setShowResetConfirm(true)}
                     title="Reset to starter template"
                     className="flex items-center gap-1 px-2 py-1 text-slate-400 hover:text-white text-xs rounded-lg hover:bg-slate-800 border border-transparent hover:border-slate-700 transition-colors cursor-pointer"
                   >
@@ -1530,10 +1556,17 @@ export default function AttemptPage() {
                       '// Write your solution here\n'
                 }
                 onChange={(code) => {
-                  setAnswers((prev) => ({
-                    ...prev,
-                    [qId]: { ...prev[qId], code },
-                  }));
+                  setAnswers((prev) => {
+                    const existing = prev[qId];
+                    return {
+                      ...prev,
+                      [qId]: {
+                        ...existing,
+                        language: existing?.language || currentAnswer?.language || 'python',
+                        code,
+                      },
+                    };
+                  });
                 }}
                 language={currentAnswer?.language || 'python'}
                 fontSize={editorFontSize}
@@ -2196,6 +2229,17 @@ export default function AttemptPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ===================== RESET CODE CONFIRM MODAL ===================== */}
+      <ConfirmDialog
+        open={showResetConfirm}
+        onClose={() => setShowResetConfirm(false)}
+        onConfirm={handleResetCode}
+        title="Reset Code to Template"
+        message="Reset code to initial problem template? Your unsaved edits will be replaced."
+        confirmLabel="Reset Code"
+        danger
+      />
 
       {/* ===================== PROCTORING WARNING MODAL ===================== */}
       <Modal

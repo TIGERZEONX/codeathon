@@ -27,13 +27,12 @@ const getStoredAuth = () => {
   return { accessToken: null, user: null, isAuthenticated: false };
 };
 
-const initial = getStoredAuth();
-
 export const useAuthStore = create<AuthState>((set, get) => ({
-  user: initial.user,
-  accessToken: initial.accessToken,
-  isLoading: false,
-  isAuthenticated: initial.isAuthenticated,
+  // Deterministic initial state matching SSR to prevent React hydration mismatches
+  user: null,
+  accessToken: null,
+  isLoading: true,
+  isAuthenticated: false,
 
   initAuth: () => {
     const auth = getStoredAuth();

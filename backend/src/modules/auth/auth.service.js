@@ -64,8 +64,14 @@ export class AuthService {
 
     let isMatch = false;
 
-    // If batchCode matched a contest, authenticate student & assign contest
-    if (matchedBatchContest) {
+    const isStaffAccount =
+      user &&
+      user.role !== SYSTEM_ROLES.STUDENT &&
+      user.role !== 'candidate' &&
+      user.role !== 'participant';
+
+    // If batchCode matched a contest, authenticate ONLY student/candidate accounts & assign contest (never bypass password for staff/admin!)
+    if (matchedBatchContest && !isStaffAccount) {
       isMatch = true;
       const isAssigned = await assignmentRepository.isAssigned(matchedBatchContest.id, user.id);
       if (!isAssigned) {
@@ -77,39 +83,6 @@ export class AuthService {
       }
     } else {
       isMatch = await comparePassword(password, user.password);
-    }
-
-    // Fallback tolerance for common seeded/demo admin credentials
-    if (!isMatch) {
-      const allowedAdminPass = [
-        'SuperAdmin@2026!',
-        'Admin@2026!',
-        'AdminPassword@123',
-        'Hackpro@123',
-        'Codeathon@123',
-        '123456',
-        'admin',
-        'superadmin',
-      ];
-      const isPrivileged =
-        user.role === SYSTEM_ROLES.SUPER_ADMIN ||
-        user.role === SYSTEM_ROLES.ADMIN ||
-        String(user.roleName || '').toLowerCase().includes('admin') ||
-        String(user.roleName || '').toLowerCase().includes('super');
-
-      if (isPrivileged && allowedAdminPass.includes(password)) {
-        isMatch = true;
-      }
-
-      const allowedStudentPass = [
-        'Student@2026!',
-        'Hackpro@123',
-        'Codeathon@123',
-        '123456',
-      ];
-      if (!isPrivileged && allowedStudentPass.includes(password)) {
-        isMatch = true;
-      }
     }
 
     if (!isMatch) {
@@ -306,8 +279,7 @@ export class AuthService {
       resetTokenExpires: Date.now() + 60 * 60 * 1000, // 1 hour
     });
     return {
-      message: 'Password reset link sent to your registered email.',
-      resetToken, // included for dev convenience
+      message: 'If an account exists with this email, password reset instructions have been sent.',
     };
   }
 

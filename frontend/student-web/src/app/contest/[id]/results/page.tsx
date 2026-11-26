@@ -49,6 +49,9 @@ export default function ResultsPage() {
 
   useEffect(() => {
     setMounted(true);
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
   }, []);
 
   useEffect(() => {

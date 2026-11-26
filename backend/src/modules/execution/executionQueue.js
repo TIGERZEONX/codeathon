@@ -1,14 +1,21 @@
 import os from 'os';
-import { logger } from '../../utils/logger.js';
+import { env } from '../../config/env.js';
 
 export class ExecutionQueue {
-  constructor(concurrency = Math.max(4, os.cpus().length)) {
+  constructor(
+    concurrency = env.EXECUTION_CONCURRENCY || Math.max(4, os.cpus().length),
+    maxQueueSize = env.EXECUTION_MAX_QUEUE || 500
+  ) {
     this.concurrency = concurrency;
+    this.maxQueueSize = maxQueueSize;
     this.activeWorkers = 0;
     this.queue = [];
   }
 
   async enqueue(taskFn) {
+    if (this.queue.length >= this.maxQueueSize) {
+      throw new Error(`Execution queue saturated (${this.maxQueueSize} pending tasks). Please retry in a few seconds.`);
+    }
     return new Promise((resolve, reject) => {
       this.queue.push({ taskFn, resolve, reject });
       this.processNext();
@@ -41,6 +48,7 @@ export class ExecutionQueue {
       activeWorkers: this.activeWorkers,
       queuedTasks: this.queue.length,
       concurrencyLimit: this.concurrency,
+      maxQueueSize: this.maxQueueSize,
     };
   }
 }

@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import swaggerUi from 'swagger-ui-express';
 import { corsMiddleware } from './config/cors.js';
+import { env } from './config/env.js';
 import { globalRateLimiter } from './middleware/rateLimit.middleware.js';
 import { requestIdMiddleware } from './middleware/requestId.middleware.js';
 import { notFoundMiddleware } from './middleware/notFound.middleware.js';
@@ -13,6 +14,9 @@ import apiRoutes from './routes/index.js';
 
 export const createApp = () => {
   const app = express();
+
+  // Trust reverse proxy headers (Railway, Nginx, Vercel) for accurate client IP
+  app.set('trust proxy', env.TRUST_PROXY);
 
   // Security & standard middlewares
   app.use(helmet());

@@ -20,19 +20,21 @@ export class CSharpRunner extends BaseRunner {
   async execute({ code, input = '', timeLimitMs = 2000, memoryLimitMb = 256 }) {
     const workspace = this.createTempWorkspace('codeathon-cs-');
     const sourcePath = path.join(workspace, 'Solution.cs');
-    const exeName = process.platform === 'win32' ? 'Solution.exe' : 'Solution';
+    const exeName = 'Solution.exe';
     const exePath = path.join(workspace, exeName);
+    const isWindows = process.platform === 'win32';
 
     try {
       fs.writeFileSync(sourcePath, code, 'utf8');
       const cscPath = this.getCscCompilerPath();
 
-      // Step 1: Compilation Phase
+      // Step 1: Compilation Phase (-flag syntax works on both Windows csc.exe and Linux Mono csc)
       const compileResult = await this.runProcess({
         command: cscPath,
-        args: ['/nologo', '/optimize+', '/target:exe', `/out:${exeName}`, 'Solution.cs'],
+        args: ['-nologo', '-optimize+', '-target:exe', `-out:${exeName}`, 'Solution.cs'],
         cwd: workspace,
         timeLimitMs: 6000,
+        isolate: false,
       });
 
       if (compileResult.exitCode !== 0 || !fs.existsSync(exePath)) {
@@ -45,13 +47,14 @@ export class CSharpRunner extends BaseRunner {
         };
       }
 
-      // Step 2: Native Sandboxed Execution Phase
+      // Step 2: Sandboxed Execution Phase (native on Windows, Mono runtime on Linux)
       const execResult = await this.runProcess({
-        command: exePath,
-        args: [],
+        command: isWindows ? exePath : 'mono',
+        args: isWindows ? [] : [exePath],
         cwd: workspace,
         input,
         timeLimitMs,
+        memoryLimitMb,
       });
 
       if (execResult.verdict) {

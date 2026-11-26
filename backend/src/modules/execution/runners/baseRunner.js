@@ -1,11 +1,21 @@
-import { spawn, exec } from 'child_process';
+import { spawn, spawnSync, exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { promisify } from 'util';
 import { SUBMISSION_VERDICT } from '@codeathon/shared';
 
-const execAsync = promisify(exec);
+let hasPrlimitCache = null;
+const hasPrlimit = () => {
+  if (process.platform !== 'linux') return false;
+  if (hasPrlimitCache !== null) return hasPrlimitCache;
+  try {
+    const res = spawnSync('prlimit', ['--version'], { timeout: 1000 });
+    hasPrlimitCache = res.status === 0;
+  } catch {
+    hasPrlimitCache = false;
+  }
+  return hasPrlimitCache;
+};
 
 export class BaseRunner {
   createTempWorkspace(prefix = 'codeathon-run-') {
@@ -29,20 +39,66 @@ export class BaseRunner {
   }
 
   getSanitizedEnv() {
-    const safeEnv = { ...process.env };
-    // Strip sensitive secrets so candidate code cannot inspect process env for credentials
-    delete safeEnv.MONGODB_URI;
-    delete safeEnv.JWT_SECRET;
-    delete safeEnv.JWT_ACCESS_SECRET;
-    delete safeEnv.JWT_REFRESH_SECRET;
-    delete safeEnv.SMTP_PASS;
-    delete safeEnv.REDIS_URL;
+    // Strict allowlist: never pass application secrets (MONGO_URI, JWT_*, BREVO_API_KEY, etc.) to candidate code
+    const allowKeys = [
+      'PATH',
+      'Path',
+      'PATHEXT',
+      'SystemRoot',
+      'WINDIR',
+      'COMSPEC',
+      'TEMP',
+      'TMP',
+      'TMPDIR',
+      'HOME',
+      'USERPROFILE',
+      'LANG',
+      'LC_ALL',
+      'JAVA_HOME',
+      'DOTNET_ROOT',
+      'DOTNET_CLI_HOME',
+    ];
+    const safeEnv = {};
+    for (const key of allowKeys) {
+      if (process.env[key] !== undefined) {
+        safeEnv[key] = process.env[key];
+      }
+    }
     return safeEnv;
   }
 
-  async runProcess({ command, args = [], cwd, input = '', timeLimitMs = 2000, maxBufferBytes = 512 * 1024 }) {
+  async runProcess({
+    command,
+    args = [],
+    cwd,
+    input = '',
+    timeLimitMs = 2000,
+    memoryLimitMb = 256,
+    enforceAddressSpace = false,
+    isolate = true,
+    maxBufferBytes = 512 * 1024,
+  }) {
     const startTime = Date.now();
     const isWindows = process.platform === 'win32';
+    const isLinux = process.platform === 'linux';
+
+    let finalCommand = command;
+    let finalArgs = args;
+
+    // On Linux containers (e.g. Railway), wrap candidate processes with prlimit for fork-bomb, disk-write, and RAM protection
+    if (isolate && isLinux && hasPrlimit()) {
+      const prlimitArgs = [
+        '--nproc=64',
+        '--fsize=2097152', // 2 MB max file write
+      ];
+      if (enforceAddressSpace && memoryLimitMb > 0) {
+        const bytes = Math.max(64, Number(memoryLimitMb)) * 1024 * 1024;
+        prlimitArgs.push(`--as=${bytes}`);
+      }
+      prlimitArgs.push('--', command, ...args);
+      finalCommand = 'prlimit';
+      finalArgs = prlimitArgs;
+    }
 
     return new Promise((resolve) => {
       let stdout = '';
@@ -50,16 +106,25 @@ export class BaseRunner {
       let killed = false;
       let outputLimitExceeded = false;
 
-      const child = spawn(command, args, {
+      const child = spawn(finalCommand, finalArgs, {
         cwd,
         env: this.getSanitizedEnv(),
         windowsHide: true,
+        detached: isLinux,
       });
 
       const killProcessTree = () => {
         if (child.pid && !child.killed) {
           if (isWindows) {
             exec(`taskkill /pid ${child.pid} /T /F`, () => {});
+          } else if (isLinux) {
+            try {
+              process.kill(-child.pid, 'SIGKILL');
+            } catch (_) {
+              try {
+                child.kill('SIGKILL');
+              } catch (_) {}
+            }
           } else {
             try {
               child.kill('SIGKILL');
