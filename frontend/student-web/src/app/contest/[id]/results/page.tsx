@@ -12,6 +12,9 @@ interface LeaderboardEntry {
   rank: number;
   displayName: string;
   totalScore: number;
+  formattedTimeTaken?: string;
+  timeTakenMinutes?: number;
+  completionTimeSeconds?: number;
   isCurrentUser?: boolean;
 }
 
@@ -22,6 +25,7 @@ interface AttemptResult {
   codingScore?: number;
   submittedAt?: string;
   startedAt?: string;
+  completionTimeSeconds?: number;
 }
 
 export default function ResultsPage() {
@@ -57,13 +61,30 @@ export default function ResultsPage() {
   const codingScore = rawAttempt.codingScore ?? 0;
   const submittedAt = rawAttempt.submittedAt || rawAttempt.updatedAt;
   const startedAt = rawAttempt.startedAt;
-  const timeTaken = rawAttempt.completionTimeSeconds
-    ? Math.round(rawAttempt.completionTimeSeconds / 60)
-    : submittedAt && startedAt
-    ? Math.max(1, Math.floor((new Date(submittedAt).getTime() - new Date(startedAt).getTime()) / 60000))
-    : null;
+  const secs = rawAttempt.completionTimeSeconds || (submittedAt && startedAt ? Math.max(1, Math.floor((new Date(submittedAt).getTime() - new Date(startedAt).getTime()) / 1000)) : 0);
+  const formattedAttemptTime = secs > 0
+    ? (secs >= 3600
+        ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ${secs % 60}s`
+        : `${Math.floor(secs / 60)}m ${secs % 60}s`)
+    : '—';
 
-  const leaderboard: LeaderboardEntry[] = (lbData as { entries?: LeaderboardEntry[] })?.entries || [];
+  const rawEntries: any = (lbData as any)?.entries || (Array.isArray(lbData) ? lbData : []);
+  const leaderboard: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
+    const entrySecs = e.completionTimeSeconds || 0;
+    const fallbackFormatted = entrySecs > 0
+      ? (entrySecs >= 3600
+          ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60)}m ${entrySecs % 60}s`
+          : `${Math.floor(entrySecs / 60)}m ${entrySecs % 60}s`)
+      : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
+
+    return {
+      rank: e.rank || idx + 1,
+      displayName: e.displayName || e.name || 'Participant',
+      totalScore: e.totalScore ?? e.score ?? 0,
+      formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
+      isCurrentUser: e.isCurrentUser || e.userId === rawAttempt?.userId,
+    };
+  });
 
   const showTotalPointsEarned =
     (attemptData as any)?.showTotalPointsEarned !== false &&
@@ -102,21 +123,21 @@ export default function ResultsPage() {
                 {totalScore}
               </div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
-                Total Points Earned
+                Total Marks Earned
               </p>
 
               <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Points</span>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MCQ Marks</span>
                   <div className="text-xl font-bold text-slate-900 mt-1">{mcqScore}</div>
                 </div>
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Points</span>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Coding Marks</span>
                   <div className="text-xl font-bold text-slate-900 mt-1">{codingScore}</div>
                 </div>
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
                   <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>
-                  <div className="text-xl font-bold text-slate-900 mt-1">{timeTaken != null ? `${timeTaken}m` : '—'}</div>
+                  <div className="text-xl font-bold text-slate-900 mt-1">{formattedAttemptTime}</div>
                 </div>
               </div>
             </>
@@ -127,11 +148,11 @@ export default function ResultsPage() {
               </div>
               <h2 className="text-xl font-bold text-slate-900 tracking-tight">Test Completed &amp; Submitted</h2>
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Your answers have been securely recorded. Total points and evaluation scores are hidden by your administrator and will be released after cohort review.
+                Your answers have been securely recorded. Total marks and evaluation scores are hidden by your administrator and will be released after cohort review.
               </p>
-              {timeTaken != null && (
+              {formattedAttemptTime !== '—' && (
                 <div className="inline-block bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs text-slate-600 font-semibold mt-2">
-                  Total Duration: <span className="text-slate-900 font-mono">{timeTaken} minutes</span>
+                  Total Duration: <span className="text-slate-900 font-mono">{formattedAttemptTime}</span>
                 </div>
               )}
             </div>
@@ -141,12 +162,19 @@ export default function ResultsPage() {
         {/* Leaderboard */}
         {showTotalPointsEarned && leaderboard.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-[#3760F8]" />
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">Contest Leaderboard</h2>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-[#3760F8]" />
+                  <h2 className="text-base font-bold text-slate-900 tracking-tight">Contest Leaderboard</h2>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Ranking Criteria: 1. Highest Marks &bull; 2. Fastest Submission Time
+                </p>
               </div>
-              <span className="text-xs text-slate-400">Top Performers</span>
+              <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                Top Standings
+              </span>
             </div>
 
             <div className="space-y-2">
@@ -168,12 +196,20 @@ export default function ResultsPage() {
                         : 'bg-white border border-slate-200 text-slate-700'
                     }`}
                   >
-                    {entry.rank}
+                    #{entry.rank}
                   </span>
                   <span className="flex-1 text-sm font-semibold text-slate-800 tracking-tight">
                     {entry.displayName} {entry.isCurrentUser && <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>}
                   </span>
-                  <span className="text-sm font-extrabold text-[#3760F8] font-mono">{entry.totalScore} pts</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-mono text-slate-600 flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {entry.formattedTimeTaken || '—'}
+                    </span>
+                    <span className="text-sm font-extrabold text-[#3760F8] font-mono whitespace-nowrap">
+                      {entry.totalScore} Marks
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

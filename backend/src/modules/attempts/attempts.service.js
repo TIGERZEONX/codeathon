@@ -739,6 +739,9 @@ export class AttemptsService {
       overallVerdict = SUBMISSION_VERDICT.RUNTIME_ERROR;
     }
 
+    const questionMarks = Number(question.marks) || totalScore || 10;
+    const scaledEarnedScore = totalScore > 0 ? Math.round((earnedScore / totalScore) * questionMarks) : 0;
+
     const submission = await submissionRepository.create({
       attemptId: attempt.id,
       contestId,
@@ -748,8 +751,8 @@ export class AttemptsService {
       language,
       verdict: overallVerdict,
       caseResults,
-      score: earnedScore,
-      maxScore: totalScore,
+      score: scaledEarnedScore,
+      maxScore: questionMarks,
       passedCases,
       totalCases,
       percentage,
@@ -787,6 +790,8 @@ export class AttemptsService {
         verdict: overallVerdict,
         passedCases,
         totalCases,
+        score: scaledEarnedScore,
+        maxScore: questionMarks,
       });
     }
 
@@ -795,9 +800,9 @@ export class AttemptsService {
       verdict: overallVerdict,
       passedCases,
       totalCases,
-      earnedScore,
-      maxScore: totalScore,
-      score: earnedScore,
+      earnedScore: scaledEarnedScore,
+      maxScore: questionMarks,
+      score: scaledEarnedScore,
       cases: clientSafeCases,
       submissionsUsed: existingCount + 1,
       maxSubmissions,
@@ -821,9 +826,12 @@ export class AttemptsService {
     let totalMcq = 0;
     let correctMcq = 0;
     let mcqScore = 0;
+    let mcqMaxScore = 0;
 
     const mcqQuestions = questions.filter((q) => q.type === 'mcq');
     for (const q of mcqQuestions) {
+      const qMarks = Number(q.marks) || 10;
+      mcqMaxScore += qMarks;
       totalMcq++;
       const ans = answers.find((a) => a.questionId === q.id);
       const selected = ans?.selectedOptions || [];
@@ -836,23 +844,27 @@ export class AttemptsService {
 
       if (isCorrect) {
         correctMcq++;
-        mcqScore += Number(q.marks) || 10;
+        mcqScore += qMarks;
       } else if (selected.length > 0 && q.negativeMarks) {
         mcqScore -= Number(q.negativeMarks);
       }
     }
+    mcqScore = Math.max(0, mcqScore);
 
     const mcqAccuracy = totalMcq > 0 ? (correctMcq / totalMcq) * 100 : 100;
 
-    // Grade Coding Submissions
+    // Grade Coding Submissions based on question-wise allocated marks
     const codingQuestions = questions.filter((q) => q.type === 'coding');
     let totalSampleCases = 0;
     let passedSampleCases = 0;
     let totalHiddenCases = 0;
     let passedHiddenCases = 0;
     let codingScore = 0;
+    let codingMaxScore = 0;
 
     for (const q of codingQuestions) {
+      const qMarks = Number(q.marks) || 10;
+      codingMaxScore += qMarks;
       const latestSub = await submissionRepository.findLatestByAttemptAndQuestion(attempt.id, q.id);
       if (latestSub && latestSub.caseResults) {
         for (const tc of latestSub.caseResults) {
@@ -865,7 +877,12 @@ export class AttemptsService {
             if (tc.passed) passedHiddenCases++;
           }
         }
-        codingScore += latestSub.score || 0;
+        // Scaled question score based on percentage of passed test cases
+        const pct = latestSub.percentage !== undefined
+          ? latestSub.percentage
+          : (latestSub.totalCases > 0 ? (latestSub.passedCases / latestSub.totalCases) * 100 : 0);
+        const earnedQMarks = Math.round((pct / 100) * qMarks);
+        codingScore += earnedQMarks;
       }
     }
 
@@ -879,7 +896,11 @@ export class AttemptsService {
     const startTimeMs = new Date(attempt.startedAt).getTime();
     const completionTimeSeconds = Math.max(0, Math.floor((now.getTime() - startTimeMs) / 1000));
 
-    // Calculate final score using Refined Rubric Engine
+    // Calculate total marks and scores obtained across each question
+    const totalMarksPossible = mcqMaxScore + codingMaxScore;
+    const totalScoreEarned = mcqScore + codingScore;
+
+    // Optional rubric breakdown calculation
     const rubricResult = RubricEngine.calculateScore(rubric, {
       mcqAccuracy,
       sampleCasesPassedPct,
@@ -891,9 +912,8 @@ export class AttemptsService {
       avgRuntimeMs: 80,
     });
 
-    const finalScore = typeof rubricResult === 'object' ? rubricResult.finalScore : Number(rubricResult) || 0;
     const scoreBreakdown = typeof rubricResult === 'object' ? rubricResult.breakdown : null;
-
+    const finalScore = totalScoreEarned;
     const submittedAt = now.toISOString();
 
     const updatedAttempt = await attemptRepository.update(attempt.id, {
@@ -901,6 +921,8 @@ export class AttemptsService {
       submittedAt,
       submissionReason: reason,
       finalScore,
+      totalScore: totalScoreEarned,
+      maxScore: totalMarksPossible,
       mcqScore: Math.max(0, mcqScore),
       codingScore,
       completionTimeSeconds,
@@ -911,6 +933,7 @@ export class AttemptsService {
         hiddenCasesPassedPct,
         passedCases,
         totalCases,
+        totalMarksPossible,
       },
     });
 
@@ -931,7 +954,9 @@ export class AttemptsService {
       io.to(`contest:${contestId}`).emit('leaderboard:update', {
         contestId,
         userId: user.userId,
-        finalScore,
+        finalScore: totalScoreEarned,
+        totalScore: totalScoreEarned,
+        completionTimeSeconds,
       });
     }
 

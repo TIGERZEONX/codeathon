@@ -50,6 +50,21 @@ interface Question {
   marks: number;
   negativeMarks?: number;
   sectionId: string;
+  isMultiSelect?: boolean;
+  mcqOptions?: McqOption[];
+  codingConfig?: {
+    inputFormat?: string;
+    outputFormat?: string;
+    constraints?: string;
+    testCases?: Array<{
+      id?: string;
+      input: string;
+      expectedOutput?: string;
+      output?: string;
+      isHidden?: boolean;
+      isSample?: boolean;
+    }>;
+  };
 }
 
 interface McqOption {
@@ -66,7 +81,7 @@ interface TestCase {
 const EMPTY_MCQ = {
   title: '',
   statement: '',
-  marks: 1,
+  marks: 10,
   negativeMarks: 0,
   isMultiSelect: false,
   options: [
@@ -80,7 +95,7 @@ const EMPTY_MCQ = {
 const EMPTY_CODING = {
   title: '',
   statement: '',
-  marks: 10,
+  marks: 50,
   negativeMarks: 0,
   inputFormat: '',
   outputFormat: '',
@@ -106,8 +121,11 @@ export default function ContestDetailPage() {
   const [addSection, setAddSection] = useState(false);
   const [sectionTitle, setSectionTitle] = useState('');
   const [addQModal, setAddQModal] = useState<{ sectionId: string; type: 'mcq' | 'coding' } | null>(null);
+  const [editQModal, setEditQModal] = useState<Question | null>(null);
   const [mcqForm, setMcqForm] = useState({ ...EMPTY_MCQ });
   const [codingForm, setCodingForm] = useState({ ...EMPTY_CODING });
+  const [editMcqForm, setEditMcqForm] = useState({ ...EMPTY_MCQ });
+  const [editCodingForm, setEditCodingForm] = useState({ ...EMPTY_CODING });
   const [deleteQ, setDeleteQ] = useState<string | null>(null);
   const [deleteSec, setDeleteSec] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -403,6 +421,120 @@ export default function ContestDetailPage() {
     setAddQModal({ sectionId, type });
   };
 
+  const openEditQ = (q: Question) => {
+    setErrorMsg(null);
+    setEditQModal(q);
+    if (q.type === 'mcq') {
+      const opts = (q.mcqOptions && q.mcqOptions.length > 0)
+        ? q.mcqOptions.map((o: any) => ({ text: o.text || '', isCorrect: Boolean(o.isCorrect) }))
+        : [...EMPTY_MCQ.options];
+      setEditMcqForm({
+        title: q.title || '',
+        statement: q.statement || '',
+        marks: Number(q.marks) || 10,
+        negativeMarks: Number(q.negativeMarks) || 0,
+        isMultiSelect: Boolean(q.isMultiSelect),
+        options: opts,
+      });
+    } else {
+      const tcs = (q.codingConfig?.testCases && q.codingConfig.testCases.length > 0)
+        ? q.codingConfig.testCases.map((tc: any) => ({
+            input: tc.input || '',
+            output: tc.expectedOutput || tc.output || '',
+            isHidden: Boolean(tc.isHidden),
+          }))
+        : [...EMPTY_CODING.testCases];
+      setEditCodingForm({
+        title: q.title || '',
+        statement: q.statement || '',
+        marks: Number(q.marks) || 50,
+        negativeMarks: Number(q.negativeMarks) || 0,
+        inputFormat: q.codingConfig?.inputFormat || '',
+        outputFormat: q.codingConfig?.outputFormat || '',
+        constraints: q.codingConfig?.constraints || '',
+        testCases: tcs,
+      });
+    }
+  };
+
+  const updateQuestionMutation = useMutation({
+    mutationFn: async () => {
+      if (!editQModal) return;
+      setErrorMsg(null);
+      const qId = editQModal._id || (editQModal as any).id;
+
+      if (editQModal.type === 'mcq') {
+        const statement = editMcqForm.statement.trim() || editMcqForm.title.trim() || 'Select the correct answer.';
+        if (statement.length < 5) {
+          throw new Error('Problem statement must be at least 5 characters');
+        }
+        const mcqOptions = editMcqForm.options
+          .filter((o) => o.text.trim().length > 0)
+          .map((o, idx) => ({
+            id: `opt_${Date.now()}_${idx}`,
+            text: o.text.trim(),
+            isCorrect: Boolean(o.isCorrect),
+          }));
+        if (mcqOptions.length < 2) {
+          throw new Error('Please provide at least 2 non-empty options for MCQ');
+        }
+        if (!mcqOptions.some((o) => o.isCorrect)) {
+          throw new Error('Please mark at least one option as correct');
+        }
+
+        return questionsApi.update(qId, {
+          title: editMcqForm.title.trim(),
+          statement,
+          marks: Number(editMcqForm.marks) || 10,
+          negativeMarks: Number(editMcqForm.negativeMarks) || 0,
+          isMultiSelect: editMcqForm.isMultiSelect,
+          mcqOptions,
+        });
+      } else {
+        const statement = editCodingForm.statement.trim() || editCodingForm.title.trim() || 'Write a program to solve this problem.';
+        if (statement.length < 5) {
+          throw new Error('Problem statement must be at least 5 characters');
+        }
+        const testCases = editCodingForm.testCases.map((tc, idx) => ({
+          id: `tc_${Date.now()}_${idx}`,
+          input: tc.input || '',
+          expectedOutput: tc.output || '',
+          isSample: !tc.isHidden,
+          isHidden: Boolean(tc.isHidden),
+          weight: 1,
+          explanation: '',
+        }));
+
+        return questionsApi.update(qId, {
+          title: editCodingForm.title.trim(),
+          statement,
+          marks: Number(editCodingForm.marks) || 50,
+          negativeMarks: Number(editCodingForm.negativeMarks) || 0,
+          codingConfig: {
+            inputFormat: editCodingForm.inputFormat || '',
+            outputFormat: editCodingForm.outputFormat || '',
+            constraints: editCodingForm.constraints || '',
+            timeLimitMs: 2000,
+            memoryLimitMb: 256,
+            allowedLanguages: ['python', 'javascript', 'cpp', 'java'],
+            starterCode: {
+              python: '# Write your Python solution here\nimport sys\n\ndef solve():\n    lines = sys.stdin.read().splitlines()\n    # TODO\n\nif __name__ == "__main__":\n    solve()\n',
+              javascript: '// Write your JavaScript solution here\nconst fs = require("fs");\nconst input = fs.readFileSync(0, "utf-8").trim();\nconsole.log(input);\n',
+            },
+            testCases,
+          },
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['questions', contestId] });
+      setEditQModal(null);
+    },
+    onError: (err: any) => {
+      setErrorMsg(getErrorMessage(err, 'Failed to update question'));
+    },
+  });
+
   const isLoading = secLoading || qLoading;
 
   const TABS = [
@@ -526,6 +658,31 @@ export default function ContestDetailPage() {
           </div>
         ) : (
           <div className="space-y-5">
+            {/* Contest Questions & Total Marks Banner */}
+            <div className="bg-gradient-to-r from-blue-50/90 via-indigo-50/50 to-white p-5 rounded-2xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                  <FileQuestion className="w-4 h-4 text-[#3760F8]" />
+                  <span>Question-Wise Marks Allocation</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Assign marks per question. The total contest score is automatically calculated from the sum of question marks.
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-white px-3.5 py-2 rounded-xl border border-blue-200 shadow-2xs text-center">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Questions</div>
+                  <div className="text-base font-extrabold text-slate-800 font-mono">{questions.length}</div>
+                </div>
+                <div className="bg-white px-4 py-2 rounded-xl border border-[#3760F8]/30 shadow-2xs text-center">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#3760F8]">Total Contest Marks</div>
+                  <div className="text-base font-extrabold text-[#3760F8] font-mono">
+                    {questions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)} Marks
+                  </div>
+                </div>
+              </div>
+            </div>
+
           {sections.map((section) => {
             const sectionQuestions = questions.filter((q) => q.sectionId === section._id);
             return (
@@ -537,8 +694,8 @@ export default function ContestDetailPage() {
                   <div className="flex items-center gap-2.5">
                     <Layers className="w-4 h-4 text-[#3760F8]" />
                     <h2 className="font-bold text-slate-900 text-sm tracking-tight">{section.title}</h2>
-                    <span className="text-[11px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-full ml-1">
-                      {sectionQuestions.length} Questions
+                    <span className="text-[11px] font-semibold text-slate-600 bg-white border border-slate-200 px-2.5 py-0.5 rounded-full ml-1">
+                      {sectionQuestions.length} Questions &bull; {sectionQuestions.reduce((sum, q) => sum + (Number(q.marks) || 0), 0)} Marks Total
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -589,17 +746,25 @@ export default function ContestDetailPage() {
                         <Badge color={q.type === 'coding' ? 'purple' : 'primary'}>
                           {q.type === 'coding' ? 'Coding' : 'MCQ'}
                         </Badge>
-                        <span className="text-xs font-mono font-bold text-[#3760F8] bg-[#EEF2FF] px-2.5 py-0.5 rounded-md">
-                          {q.marks} pts
+                        <span className="text-xs font-mono font-bold text-[#3760F8] bg-[#EEF2FF] px-2.5 py-0.5 rounded-md border border-[#C7D2FE]">
+                          {q.marks} Marks
                         </span>
                         {q.negativeMarks ? (
-                          <span className="text-xs font-mono font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md">
-                            -{q.negativeMarks}
+                          <span className="text-xs font-mono font-medium text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            -{q.negativeMarks} Penalty
                           </span>
                         ) : null}
                         <button
+                          onClick={() => openEditQ(q)}
+                          className="p-1.5 text-slate-400 hover:text-[#3760F8] hover:bg-[#EEF2FF] rounded-lg transition-colors ml-1"
+                          title="Edit Question & Marks Allocation"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => setDeleteQ(q._id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors ml-2"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Delete Question"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -691,7 +856,7 @@ export default function ContestDetailPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Positive Marks"
+              label="Allocated Marks (e.g. 10) *"
               type="number"
               min="1"
               value={String(mcqForm.marks)}
@@ -806,14 +971,14 @@ export default function ContestDetailPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Max Score Marks"
+              label="Allocated Marks (e.g. 50) *"
               type="number"
               min="1"
               value={String(codingForm.marks)}
               onChange={(e) => setCodingForm((f) => ({ ...f, marks: Number(e.target.value) }))}
             />
             <Input
-              label="Negative Marks"
+              label="Negative Penalty"
               type="number"
               min="0"
               value={String(codingForm.negativeMarks)}
@@ -926,6 +1091,326 @@ export default function ContestDetailPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Edit Question & Marks Allocation Modal */}
+      <Modal
+        open={!!editQModal}
+        onClose={() => setEditQModal(null)}
+        title={editQModal?.type === 'coding' ? 'Edit Coding Problem & Marks Allocation' : 'Edit MCQ & Marks Allocation'}
+        size={editQModal?.type === 'coding' ? 'xl' : 'lg'}
+      >
+        {editQModal?.type === 'mcq' ? (
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {errorMsg && (
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <Input
+              label="Question Title *"
+              value={editMcqForm.title}
+              onChange={(e) => setEditMcqForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Time complexity of QuickSelect"
+            />
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">Problem Statement / Question *</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none"
+                rows={3}
+                value={editMcqForm.statement}
+                onChange={(e) => setEditMcqForm((f) => ({ ...f, statement: e.target.value }))}
+                placeholder="State the question clearly..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Allocated Marks (e.g. 10) *"
+                type="number"
+                min="1"
+                value={String(editMcqForm.marks)}
+                onChange={(e) => setEditMcqForm((f) => ({ ...f, marks: Number(e.target.value) }))}
+              />
+              <Input
+                label="Negative Penalty"
+                type="number"
+                min="0"
+                value={String(editMcqForm.negativeMarks)}
+                onChange={(e) => setEditMcqForm((f) => ({ ...f, negativeMarks: Number(e.target.value) }))}
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                className="w-4 h-4 accent-[#3760F8] rounded"
+                checked={editMcqForm.isMultiSelect}
+                onChange={(e) => setEditMcqForm((f) => ({ ...f, isMultiSelect: e.target.checked }))}
+              />
+              <span>Multiple Choice (Multiple Correct Options Allowed)</span>
+            </label>
+
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800 block">
+                  Options &amp; Correct Answer Checkbox
+                </label>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-[#3760F8] hover:underline flex items-center gap-1"
+                  onClick={() =>
+                    setEditMcqForm((f) => ({
+                      ...f,
+                      options: [...f.options, { text: '', isCorrect: false }],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Option
+                </button>
+              </div>
+              {editMcqForm.options.map((opt, oi) => (
+                <div key={oi} className="flex items-center gap-2.5">
+                  <input
+                    type={editMcqForm.isMultiSelect ? 'checkbox' : 'radio'}
+                    name="editMcqCorrectOption"
+                    className="w-4 h-4 accent-[#3760F8] rounded cursor-pointer"
+                    checked={opt.isCorrect}
+                    onChange={(e) =>
+                      setEditMcqForm((f) => ({
+                        ...f,
+                        options: f.options.map((o, i) =>
+                          editMcqForm.isMultiSelect
+                            ? i === oi
+                              ? { ...o, isCorrect: e.target.checked }
+                              : o
+                            : { ...o, isCorrect: i === oi }
+                        ),
+                      }))
+                    }
+                  />
+                  <input
+                    className="flex-1 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 bg-white focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none"
+                    value={opt.text}
+                    placeholder={`Option ${String.fromCharCode(65 + oi)} text`}
+                    onChange={(e) =>
+                      setEditMcqForm((f) => ({
+                        ...f,
+                        options: f.options.map((o, i) => (i === oi ? { ...o, text: e.target.value } : o)),
+                      }))
+                    }
+                  />
+                  {editMcqForm.options.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditMcqForm((f) => ({
+                          ...f,
+                          options: f.options.filter((_, i) => i !== oi),
+                        }))
+                      }
+                      className="text-slate-400 hover:text-rose-600 p-1"
+                      title="Remove Option"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
+              <Button variant="outline" size="sm" onClick={() => setEditQModal(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => updateQuestionMutation.mutate()}
+                loading={updateQuestionMutation.isPending}
+                disabled={!editMcqForm.title.trim()}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {errorMsg && (
+              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <Input
+              label="Problem Title *"
+              value={editCodingForm.title}
+              onChange={(e) => setEditCodingForm((f) => ({ ...f, title: e.target.value }))}
+              placeholder="e.g. Two Sum / Array Balancing"
+            />
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">Problem Description &amp; Requirements *</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none font-sans"
+                rows={4}
+                value={editCodingForm.statement}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, statement: e.target.value }))}
+                placeholder="Describe problem specification, inputs, outputs and constraints..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Allocated Marks (e.g. 50) *"
+                type="number"
+                min="1"
+                value={String(editCodingForm.marks)}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, marks: Number(e.target.value) }))}
+              />
+              <Input
+                label="Negative Penalty"
+                type="number"
+                min="0"
+                value={String(editCodingForm.negativeMarks)}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, negativeMarks: Number(e.target.value) }))}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Input Format (Optional)"
+                value={editCodingForm.inputFormat}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, inputFormat: e.target.value }))}
+                placeholder="e.g. First line contains N"
+              />
+              <Input
+                label="Output Format (Optional)"
+                value={editCodingForm.outputFormat}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, outputFormat: e.target.value }))}
+                placeholder="e.g. Print single integer"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">Constraints (Optional)</label>
+              <input
+                className="w-full border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 bg-white focus:ring-2 focus:ring-[#3760F8]/30 focus:outline-none"
+                value={editCodingForm.constraints}
+                onChange={(e) => setEditCodingForm((f) => ({ ...f, constraints: e.target.value }))}
+                placeholder="e.g. 1 <= N <= 10^5"
+              />
+            </div>
+
+            {/* Test Cases */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-800">Test Cases Suite</label>
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-[#3760F8] hover:underline flex items-center gap-1"
+                  onClick={() =>
+                    setEditCodingForm((f) => ({
+                      ...f,
+                      testCases: [...f.testCases, { input: '', output: '', isHidden: false }],
+                    }))
+                  }
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Test Case
+                </button>
+              </div>
+
+              {editCodingForm.testCases.map((tc, ti) => (
+                <div key={ti} className="border border-slate-200 rounded-2xl p-3.5 space-y-2.5 bg-slate-50/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 font-mono">Case #{ti + 1}</span>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="accent-[#3760F8] rounded"
+                          checked={tc.isHidden}
+                          onChange={(e) =>
+                            setEditCodingForm((f) => ({
+                              ...f,
+                              testCases: f.testCases.map((t, i) => (i === ti ? { ...t, isHidden: e.target.checked } : t)),
+                            }))
+                          }
+                        />
+                        <span>Hidden Evaluation Test</span>
+                      </label>
+                      {editCodingForm.testCases.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditCodingForm((f) => ({
+                              ...f,
+                              testCases: f.testCases.filter((_, i) => i !== ti),
+                            }))
+                          }
+                          className="text-slate-400 hover:text-rose-600"
+                          title="Remove test case"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Standard Input (STDIN)</label>
+                      <textarea
+                        className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-[#3760F8] focus:outline-none bg-white"
+                        rows={2}
+                        value={tc.input}
+                        onChange={(e) =>
+                          setEditCodingForm((f) => ({
+                            ...f,
+                            testCases: f.testCases.map((t, i) => (i === ti ? { ...t, input: e.target.value } : t)),
+                          }))
+                        }
+                        placeholder="Input data"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase block mb-1">Expected Output (STDOUT)</label>
+                      <textarea
+                        className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-mono focus:ring-1 focus:ring-[#3760F8] focus:outline-none bg-white"
+                        rows={2}
+                        value={tc.output}
+                        onChange={(e) =>
+                          setEditCodingForm((f) => ({
+                            ...f,
+                            testCases: f.testCases.map((t, i) => (i === ti ? { ...t, output: e.target.value } : t)),
+                          }))
+                        }
+                        placeholder="Expected output"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
+              <Button variant="outline" size="sm" onClick={() => setEditQModal(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => updateQuestionMutation.mutate()}
+                loading={updateQuestionMutation.isPending}
+                disabled={!editCodingForm.title.trim()}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Edit Contest Settings Modal */}

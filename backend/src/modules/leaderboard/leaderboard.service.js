@@ -39,21 +39,39 @@ export class LeaderboardService {
     );
 
     // Sort by:
-    // 1. Final score descending
-    // 2. Earlier completion time / submittedAt ascending (tie breaker)
+    // 1. Highest Total Score descending
+    // 2. Fastest Submission / Shortest completion time ascending (Tie-Breaker)
+    // 3. Earlier submitted timestamp ascending (Secondary Tie-Breaker)
     scoredAttempts.sort((a, b) => {
-      const scoreA = a.finalScore ?? a.score ?? a.totalScore ?? 0;
-      const scoreB = b.finalScore ?? b.score ?? b.totalScore ?? 0;
+      const scoreA = Number(a.totalScore ?? a.finalScore ?? a.score ?? 0);
+      const scoreB = Number(b.totalScore ?? b.finalScore ?? b.score ?? 0);
       if (scoreB !== scoreA) {
         return scoreB - scoreA;
       }
-      const timeA = a.completionTimeSeconds || 999999;
-      const timeB = b.completionTimeSeconds || 999999;
-      return timeA - timeB;
+      // Fastest Submission tie-breaker: shortest completion time in seconds
+      const timeA = Number(a.completionTimeSeconds) > 0 ? Number(a.completionTimeSeconds) : 999999;
+      const timeB = Number(b.completionTimeSeconds) > 0 ? Number(b.completionTimeSeconds) : 999999;
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+      const dateA = a.submittedAt ? new Date(a.submittedAt).getTime() : 9999999999999;
+      const dateB = b.submittedAt ? new Date(b.submittedAt).getTime() : 9999999999999;
+      return dateA - dateB;
     });
 
     const topLimit = config.topN || 50;
     const sliced = scoredAttempts.slice(0, topLimit);
+
+    const formatDuration = (secs) => {
+      if (!secs || secs <= 0) return '—';
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      if (h > 0) {
+        return `${h}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+      }
+      return `${m}m ${s.toString().padStart(2, '0')}s`;
+    };
 
     const entries = sliced.map((att, index) => {
       const participant = allParticipants.find((p) =>
@@ -66,7 +84,8 @@ export class LeaderboardService {
       const isAnonymous = isStudent && config.displayMode === LEADERBOARD_DISPLAY_MODE.ANONYMOUS;
       const candidateName = participant?.name || participant?.fullName || att.userName || 'Candidate';
       const rollNumber = participant?.rollNumber || att.rollNumber || '—';
-      const score = att.finalScore ?? att.score ?? att.totalScore ?? 0;
+      const score = att.totalScore ?? att.finalScore ?? att.score ?? 0;
+      const timeSecs = att.completionTimeSeconds || 0;
 
       return {
         rank: index + 1,
@@ -80,8 +99,9 @@ export class LeaderboardService {
         totalScore: score,
         mcqScore: att.mcqScore || 0,
         codingScore: att.codingScore || 0,
-        completionTimeSeconds: att.completionTimeSeconds || 0,
-        timeTakenMinutes: Math.round((att.completionTimeSeconds || 0) / 60),
+        completionTimeSeconds: timeSecs,
+        timeTakenMinutes: Math.round(timeSecs / 60),
+        formattedTimeTaken: formatDuration(timeSecs),
         status: att.status,
         submittedAt: att.submittedAt,
       };

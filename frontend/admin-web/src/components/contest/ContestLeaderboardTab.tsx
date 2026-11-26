@@ -19,6 +19,7 @@ interface LeaderboardEntry {
   codingScore?: number;
   timeTakenMinutes?: number;
   completionTimeSeconds?: number;
+  formattedTimeTaken?: string;
   teamName?: string;
 }
 
@@ -31,17 +32,28 @@ export function ContestLeaderboardTab({ contestId }: { contestId: string }) {
 
   const rawData: any = (lbData as any)?.data || lbData;
   const rawEntries: any = rawData?.entries || (Array.isArray(rawData) ? rawData : []);
-  const entries: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => ({
-    rank: e.rank || idx + 1,
-    participantId: e.participantId || e.userId || `user_${idx}`,
-    displayName: e.displayName || e.name || 'Candidate',
-    rollNumber: e.rollNumber || '—',
-    teamName: e.teamName,
-    totalScore: e.totalScore ?? e.score ?? 0,
-    mcqScore: e.mcqScore ?? 0,
-    codingScore: e.codingScore ?? 0,
-    timeTakenMinutes: e.timeTakenMinutes ?? (e.completionTimeSeconds ? Math.round(e.completionTimeSeconds / 60) : 0),
-  }));
+  const entries: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
+    const secs = e.completionTimeSeconds || 0;
+    const fallbackFormatted = secs > 0
+      ? (secs >= 3600
+          ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ${secs % 60}s`
+          : `${Math.floor(secs / 60)}m ${secs % 60}s`)
+      : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
+
+    return {
+      rank: e.rank || idx + 1,
+      participantId: e.participantId || e.userId || `user_${idx}`,
+      displayName: e.displayName || e.name || 'Candidate',
+      rollNumber: e.rollNumber || '—',
+      teamName: e.teamName,
+      totalScore: e.totalScore ?? e.score ?? 0,
+      mcqScore: e.mcqScore ?? 0,
+      codingScore: e.codingScore ?? 0,
+      completionTimeSeconds: secs,
+      formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
+      timeTakenMinutes: e.timeTakenMinutes ?? (secs ? Math.round(secs / 60) : 0),
+    };
+  });
 
   const isFrozen = rawData?.isFrozen || rawData?.frozen;
 
@@ -77,6 +89,19 @@ export function ContestLeaderboardTab({ contestId }: { contestId: string }) {
         </div>
       </div>
 
+      {/* Ranking Criteria Callout */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2">
+          <Award className="w-4 h-4 text-[#3760F8] shrink-0" />
+          <span>
+            <strong className="text-slate-800">Ranking Criteria:</strong> 1. <strong>Highest Score</strong> (total marks earned) &bull; 2. <strong>Fastest Submission</strong> (shortest completion time receives higher rank in ties).
+          </span>
+        </div>
+        <span className="text-[11px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-md self-start sm:self-auto">
+          Tie-Breaker: Completion Time
+        </span>
+      </div>
+
       {isLoading ? (
         <div className="flex justify-center py-20">
           <Spinner size="lg" />
@@ -87,7 +112,7 @@ export function ContestLeaderboardTab({ contestId }: { contestId: string }) {
             <table className="min-w-full divide-y divide-slate-200/80">
               <thead className="bg-slate-50/80">
                 <tr>
-                  {['Rank', 'Candidate', 'Roll No.', 'Allocation', 'MCQ Points', 'Coding Points', 'Aggregate Score', 'Time Taken'].map((h) => (
+                  {['Rank', 'Participant', 'Roll No.', 'Allocation', 'MCQ Marks', 'Coding Marks', 'Total Score', 'Time Taken'].map((h) => (
                     <th key={h} className="px-5 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                       {h}
                     </th>
@@ -112,7 +137,7 @@ export function ContestLeaderboardTab({ contestId }: { contestId: string }) {
                             ? 'bg-[#3760F8] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-600'
                         }`}>
-                          {entry.rank}
+                          #{entry.rank}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-xs font-semibold text-slate-900 tracking-tight">
@@ -126,13 +151,16 @@ export function ContestLeaderboardTab({ contestId }: { contestId: string }) {
                           <span className="text-slate-400 font-medium">Individual</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 text-xs font-mono text-slate-700">{entry.mcqScore ?? 0} pts</td>
-                      <td className="px-5 py-3.5 text-xs font-mono text-slate-700">{entry.codingScore ?? 0} pts</td>
+                      <td className="px-5 py-3.5 text-xs font-mono text-slate-700">{entry.mcqScore ?? 0} Marks</td>
+                      <td className="px-5 py-3.5 text-xs font-mono text-slate-700">{entry.codingScore ?? 0} Marks</td>
                       <td className="px-5 py-3.5 text-xs font-mono font-extrabold text-[#3760F8]">
-                        {entry.totalScore} pts
+                        {entry.totalScore} Marks
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-slate-500 font-mono">
-                        {entry.timeTakenMinutes != null ? `${entry.timeTakenMinutes}m` : '—'}
+                      <td className="px-5 py-3.5 text-xs">
+                        <span className="inline-flex items-center gap-1.5 font-mono text-slate-700 font-semibold bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          {entry.formattedTimeTaken || '—'}
+                        </span>
                       </td>
                     </tr>
                   ))
