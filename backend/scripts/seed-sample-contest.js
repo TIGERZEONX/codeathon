@@ -9,7 +9,7 @@ import { logger } from '../src/utils/logger.js';
 
 export const seedSampleContest = async () => {
   try {
-    const existing = await contestRepository.findOne({ title: 'HirePro National Assessment 2026' }) || await contestRepository.findOne({ title: 'National Collegiate Codeathon 2026' });
+    const existing = await contestRepository.findOne({ title: 'HACKPRO National Assessment 2026' }) || await contestRepository.findOne({ title: 'National Collegiate Codeathon 2026' });
     if (existing) return existing;
 
     const now = new Date();
@@ -19,7 +19,7 @@ export const seedSampleContest = async () => {
     // 1. Create Contest
     const contest = await contestRepository.create({
       id: 'contest_sample_2026',
-      title: 'HirePro National Assessment 2026',
+      title: 'HACKPRO National Assessment 2026',
       description: 'Algorithmic problem solving and multiple-choice assessment.',
       instructions: 'Please maintain fullscreen at all times. Tab switches and devtools are monitored. Submit each coding question after testing sample cases.',
       startTime,
@@ -311,7 +311,7 @@ solve();
     const p1 = await participantsService.createParticipant({
       rollNumber: 'CS2026001',
       name: 'Alex Johnson',
-      email: 'student1@hirepro.dev',
+      email: 'student1@hackpro.dev',
       password: 'Student@2026!',
       department: 'Computer Science',
     });
@@ -319,7 +319,7 @@ solve();
     const p2 = await participantsService.createParticipant({
       rollNumber: 'CS2026002',
       name: 'Priya Sharma',
-      email: 'student2@hirepro.dev',
+      email: 'student2@hackpro.dev',
       password: 'Student@2026!',
       department: 'Information Technology',
     });

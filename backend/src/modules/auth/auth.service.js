@@ -86,7 +86,6 @@ export class AuthService {
         'Admin@2026!',
         'AdminPassword@123',
         'Hackpro@123',
-        'Hirepro@123',
         'Codeathon@123',
         '123456',
         'admin',
@@ -106,7 +105,6 @@ export class AuthService {
       const allowedStudentPass = [
         'Student@2026!',
         'Hackpro@123',
-        'Hirepro@123',
         'Codeathon@123',
         '123456',
       ];

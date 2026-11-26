@@ -27,7 +27,7 @@ class UserRepository extends BaseRepository {
     if (user) return user;
 
     // 2. Rebrand / Domain alias matches
-    // e.g. admin@hackpro.dev <-> admin@hirepro.dev <-> admin
+    // e.g. admin@hackpro.dev <-> admin
     const localPart = lower.includes('@') ? lower.split('@')[0] : lower;
 
     if (localPart === 'superadmin' || localPart === 'super_admin' || lower === 'superadmin') {
