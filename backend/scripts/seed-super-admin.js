@@ -47,31 +47,15 @@ export const seedSuperAdmin = async () => {
       logger.info('Standard Administrator seeded successfully: admin@hackpro.dev');
     }
 
-    // Ensure Gautham has Super Admin role
+    // Ensure Gautham Kumar is configured as Candidate/Student (not Super Admin)
     const existingGautham = await userRepository.findByEmail('gautham3177@gmail.com');
     if (existingGautham) {
       await userRepository.update(existingGautham.id, {
-        role: SYSTEM_ROLES.SUPER_ADMIN,
-        roleId: SYSTEM_ROLES.SUPER_ADMIN,
-        roleName: 'Super Admin',
+        role: SYSTEM_ROLES.STUDENT,
+        roleId: SYSTEM_ROLES.STUDENT,
+        roleName: 'Student',
       });
-      logger.info('Promoted gautham3177@gmail.com to Super Admin');
-    } else {
-      const hashedGauthamPassword = await hashPassword('123456');
-      await userRepository.create({
-        id: 'gautham_super_admin',
-        name: 'gautham kumar',
-        email: 'gautham3177@gmail.com',
-        rollNumber: '2024PECAI381',
-        password: hashedGauthamPassword,
-        role: SYSTEM_ROLES.SUPER_ADMIN,
-        roleId: SYSTEM_ROLES.SUPER_ADMIN,
-        roleName: 'Super Admin',
-        contestScope: [],
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      });
-      logger.info('Seeded gautham3177@gmail.com as Super Admin');
+      logger.info('Configured gautham3177@gmail.com as Student');
     }
 
     return superAdmin;

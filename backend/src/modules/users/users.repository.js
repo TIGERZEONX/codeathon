@@ -40,11 +40,6 @@ class UserRepository extends BaseRepository {
       if (user) return user;
     }
 
-    if (localPart === 'gautham' || localPart === 'gautham3177' || lower === 'gautham' || lower === 'gautham3177') {
-      user = all.find((u) => u.email && u.email.toLowerCase().includes('gautham3177'));
-      if (user) return user;
-    }
-
     // Try matching any user whose email starts with localPart + '@'
     user = all.find((u) => u.email && u.email.toLowerCase().startsWith(`${localPart}@`));
     if (user) return user;

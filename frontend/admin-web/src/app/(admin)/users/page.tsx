@@ -192,7 +192,7 @@ export default function UsersPage() {
       key: 'actions',
       header: 'Operations',
       render: (u: User) => {
-        const isSuper = (u.role || u.roleName || '').toLowerCase().includes('super') || u.email === 'gautham3177@gmail.com';
+        const isSuper = (u.role || u.roleName || '').toLowerCase().includes('super');
         const isSelf = currentUser && (u.email === currentUser.email || u._id === currentUser.userId);
 
         if (isSuper || isSelf) {

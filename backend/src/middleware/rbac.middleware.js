@@ -15,13 +15,12 @@ export const requirePermission = (permissionKey, sensitiveRecheck = false) => {
       const roleNameStr = String(user.roleName || '').toLowerCase();
       const emailStr = String(user.email || '').toLowerCase();
 
-      // Super Admin and Owner Email bypass all checks
+      // Super Admin bypass all checks
       if (
         roleStr === 'super_admin' ||
         roleStr === 'superadmin' ||
         user.isSuperAdmin === true ||
-        roleNameStr.includes('super') ||
-        emailStr === 'gautham3177@gmail.com'
+        roleNameStr.includes('super')
       ) {
         return next();
       }
@@ -104,8 +103,7 @@ export const requireSuperAdmin = () => {
       roleStr === 'admin' ||
       user.isSuperAdmin === true ||
       String(user.roleName || '').toLowerCase().includes('super') ||
-      String(user.roleName || '').toLowerCase().includes('admin') ||
-      emailStr === 'gautham3177@gmail.com'
+      String(user.roleName || '').toLowerCase().includes('admin')
     ) {
       return next();
     }

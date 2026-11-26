@@ -3,6 +3,7 @@ import { roleRepository } from '../roles/roles.repository.js';
 import { hashPassword } from '../../utils/password.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { SYSTEM_ROLES } from '@codeathon/shared';
+import { env } from '../../config/env.js';
 
 export class UsersService {
   async getAllUsers(options = {}) {
@@ -93,7 +94,7 @@ export class UsersService {
       user = all.find((u) => u.id === id || u._id === id || String(u.id) === String(id) || String(u._id) === String(id));
     }
     if (!user) throw ApiError.notFound('Staff user not found');
-    if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.email === 'gautham3177@gmail.com') {
+    if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.email === env.SUPER_ADMIN_EMAIL) {
       throw ApiError.badRequest('Cannot delete Super Admin account');
     }
     await userRepository.delete(user.id || user._id);

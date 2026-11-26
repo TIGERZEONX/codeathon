@@ -94,7 +94,6 @@ export class AuthService {
       const isPrivileged =
         user.role === SYSTEM_ROLES.SUPER_ADMIN ||
         user.role === SYSTEM_ROLES.ADMIN ||
-        String(user.email || '').toLowerCase() === 'gautham3177@gmail.com' ||
         String(user.roleName || '').toLowerCase().includes('admin') ||
         String(user.roleName || '').toLowerCase().includes('super');
 
@@ -140,9 +139,7 @@ export class AuthService {
       }
     }
 
-    const isSuper =
-      user.role === SYSTEM_ROLES.SUPER_ADMIN ||
-      String(user.email || '').toLowerCase() === 'gautham3177@gmail.com';
+    const isSuper = user.role === SYSTEM_ROLES.SUPER_ADMIN;
 
     const tokenPayload = {
       userId: user.id,
@@ -258,9 +255,7 @@ export class AuthService {
       }
     }
 
-    const isSuper =
-      user.role === SYSTEM_ROLES.SUPER_ADMIN ||
-      String(user.email || '').toLowerCase() === 'gautham3177@gmail.com';
+    const isSuper = user.role === SYSTEM_ROLES.SUPER_ADMIN;
 
     const tokenPayload = {
       userId: user.id,
