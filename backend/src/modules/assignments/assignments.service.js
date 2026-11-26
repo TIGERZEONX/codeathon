@@ -1,6 +1,10 @@
 import { assignmentRepository } from './assignments.repository.js';
 import { participantRepository } from '../participants/participants.repository.js';
 import { teamRepository } from '../teams/teams.repository.js';
+import { attemptRepository } from '../attempts/attempts.repository.js';
+import { answerRepository } from '../attempts/answers.repository.js';
+import { submissionRepository } from '../submissions/submissions.repository.js';
+import { attendanceRepository } from '../attendance/attendance.repository.js';
 
 export class AssignmentsService {
   async getAssignmentsByContest(contestId) {
@@ -61,6 +65,16 @@ export class AssignmentsService {
     if (participantId) {
       const item = await assignmentRepository.findOne({ contestId, participantId });
       if (item) await assignmentRepository.delete(item.id);
+
+      // Clean up attempt, answers, submissions, and attendance for this participant in this contest
+      const attempt = await attemptRepository.findByContestAndUser(contestId, participantId);
+      if (attempt) {
+        await attemptRepository.delete(attempt.id);
+        await answerRepository.deleteMany({ attemptId: attempt.id });
+        await submissionRepository.deleteMany({ attemptId: attempt.id });
+        const att = await attendanceRepository.findByContestAndUser(contestId, participantId);
+        if (att) await attendanceRepository.delete(att.id);
+      }
     }
     if (teamId) {
       const item = await assignmentRepository.findOne({ contestId, teamId });

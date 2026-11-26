@@ -232,6 +232,19 @@ export class BaseRepository {
     return deleted;
   }
 
+  async deleteMany(query = {}) {
+    const matches = await this.find(query);
+    let count = 0;
+    for (const item of matches) {
+      const id = item.id || item._id;
+      if (id) {
+        await this.delete(id);
+        count++;
+      }
+    }
+    return count;
+  }
+
   async count(query = {}) {
     const matches = await this.find(query);
     return matches.length;

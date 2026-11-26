@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contestApi, proctorApi, authApi } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { isClientRunnable, runCodeInBrowser } from '@/lib/clientRunner';
@@ -196,6 +196,7 @@ const DEFAULT_STARTER_CODE: Record<string, string> = {
 export default function AttemptPage() {
   const { id: contestId } = useParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
 
   const { data: meUser } = useQuery({
@@ -389,40 +390,72 @@ export default function AttemptPage() {
 
   // Sync submission counts & cooling state from attempt
   useEffect(() => {
-    if (attempt?.submissionCounts) {
-      setSubmissionCounts(attempt.submissionCounts);
-    }
+    setSubmissionCounts(attempt?.submissionCounts || {});
     if (qId && attempt?.lastRunTimestamps?.[qId]) {
       const cooldownSec = attempt?.codeRunCooldownSeconds ?? attempt?.contest?.codeRunCooldownSeconds ?? 30;
       const elapsed = Math.floor((Date.now() - attempt.lastRunTimestamps[qId]) / 1000);
       if (elapsed < cooldownSec) {
         setCooldownRemaining(cooldownSec - elapsed);
+      } else {
+        setCooldownRemaining(0);
       }
+    } else {
+      setCooldownRemaining(0);
     }
   }, [attempt, qId]);
 
+  // Real-time listener: if admin revokes/unlocks the attempt, refresh state cleanly
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !contestId) return;
+
+    const onAttemptRevoked = (data: any) => {
+      const currentAttId = attempt?.id || (attempt as any)?._id;
+      if (!data?.attemptId || !currentAttId || data.attemptId === currentAttId) {
+        queryClient.invalidateQueries({ queryKey: ['attempt-state', contestId] });
+        setAnswers({});
+        setSubmissionCounts({});
+        setRunResult(null);
+        setSubmitCodeResult(null);
+        setMarkedForReview(new Set());
+        setVisitedQuestions(new Set());
+        setCooldownRemaining(0);
+      }
+    };
+
+    socket.on('attempt:revoked', onAttemptRevoked);
+    return () => {
+      socket.off('attempt:revoked', onAttemptRevoked);
+    };
+  }, [contestId, attempt?.id, queryClient]);
+
   // Initialize saved answers from backend
   useEffect(() => {
-    if (attempt?.savedAnswers && Array.isArray(attempt.savedAnswers) && Object.keys(answers).length === 0) {
-      const initialAnswers: Record<string, AnswerState> = {};
-      const initialReviews = new Set<string>();
+    if (attempt?.savedAnswers && Array.isArray(attempt.savedAnswers)) {
+      if (attempt.savedAnswers.length === 0) {
+        setAnswers({});
+        setMarkedForReview(new Set());
+      } else if (Object.keys(answers).length === 0) {
+        const initialAnswers: Record<string, AnswerState> = {};
+        const initialReviews = new Set<string>();
 
-      attempt.savedAnswers.forEach((sa) => {
-        const id = sa.questionId || sa.question?._id || sa.question?.id;
-        if (id) {
-          initialAnswers[id] = {
-            selectedOptions: sa.selectedOptions || [],
-            code: sa.draftCode || sa.code || '',
-            language: sa.language || 'python',
-          };
-          if (sa.isMarkedForReview) {
-            initialReviews.add(id);
+        attempt.savedAnswers.forEach((sa) => {
+          const id = sa.questionId || sa.question?._id || sa.question?.id;
+          if (id) {
+            initialAnswers[id] = {
+              selectedOptions: sa.selectedOptions || [],
+              code: sa.draftCode || sa.code || '',
+              language: sa.language || 'python',
+            };
+            if (sa.isMarkedForReview) {
+              initialReviews.add(id);
+            }
           }
-        }
-      });
+        });
 
-      setAnswers(initialAnswers);
-      setMarkedForReview(initialReviews);
+        setAnswers(initialAnswers);
+        setMarkedForReview(initialReviews);
+      }
     }
   }, [attempt?.savedAnswers, answers]);
 

@@ -30,6 +30,7 @@ export const revokeSubmissionSchema = z.object({
   attemptId: z.string().min(1, 'Attempt ID is required'),
   reason: z.string().min(1, 'Revocation reason is required').default('Administrative unlock'),
   extensionMinutes: z.number().int().min(0).default(0), // optional extra time given on reopen
+  resetAnswers: z.boolean().optional().default(true),
 });
 
 export type SaveAnswerInput = z.infer<typeof saveAnswerSchema>;

@@ -54,6 +54,7 @@ export default function SubmissionsPage() {
   const [revokeModal, setRevokeModal] = useState<Submission | null>(null);
   const [reason, setReason] = useState('');
   const [extensionMin, setExtensionMin] = useState('');
+  const [resetAnswers, setResetAnswers] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -79,6 +80,7 @@ export default function SubmissionsPage() {
         attemptId: targetAttemptId,
         reason: reason.trim() || 'Administrative unlock',
         extensionMinutes: extensionMin ? Number(extensionMin) : 0,
+        resetAnswers,
       });
     },
     onSuccess: () => {
@@ -86,6 +88,7 @@ export default function SubmissionsPage() {
       setRevokeModal(null);
       setReason('');
       setExtensionMin('');
+      setResetAnswers(true);
       setErrorMsg(null);
     },
     onError: (err: any) => {
@@ -97,6 +100,7 @@ export default function SubmissionsPage() {
     setErrorMsg(null);
     setReason('');
     setExtensionMin('');
+    setResetAnswers(true);
     setRevokeModal(s);
   };
 
@@ -488,6 +492,21 @@ export default function SubmissionsPage() {
             onChange={(e) => setExtensionMin(e.target.value)}
             placeholder="e.g. 15"
           />
+
+          <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl space-y-1.5">
+            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
+              <input
+                type="checkbox"
+                checked={resetAnswers}
+                onChange={(e) => setResetAnswers(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-[#3760F8] focus:ring-[#3760F8]"
+              />
+              <span>Full Re-attempt: Clear previous answers &amp; restore code submission quota</span>
+            </label>
+            <p className="text-[11px] text-slate-500 pl-6 leading-relaxed">
+              When checked, past answers are cleared (questions will not show as attempted/green) and code run/submit quotas are fully reset for a fresh re-take.
+            </p>
+          </div>
 
           <div className="flex gap-2.5 justify-end pt-2">
             <Button variant="outline" size="sm" onClick={() => setRevokeModal(null)}>

@@ -261,7 +261,7 @@ export const submissionsApi = {
     const res = await apiClient.get('/submissions', { params: query });
     return res.data;
   },
-  revoke: async (payload: { attemptId: string; reason: string; extensionMinutes?: number }) => {
+  revoke: async (payload: { attemptId: string; reason: string; extensionMinutes?: number; resetAnswers?: boolean }) => {
     const res = await apiClient.post('/submissions/revoke', payload);
     return res.data.data;
   },

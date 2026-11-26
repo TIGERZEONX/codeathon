@@ -13,10 +13,16 @@ export const calculateAttemptTiming = (
   let endsAtMs = durationEndMs;
 
   // Only clamp to contestEndAt in scheduled timer mode when contestEndAt is a valid future timestamp
+  // AND the attempt has not been given an explicit administrative extension that goes beyond contestEndAt
   if (!isManual && contestEndAt) {
     const maxContestEndMs = new Date(contestEndAt).getTime() + (graceMinutes || 0) * 60 * 1000;
     if (maxContestEndMs > startMs) {
-      endsAtMs = Math.min(durationEndMs, maxContestEndMs);
+      if (extensionSeconds > 0) {
+        // Administrative extension takes precedence
+        endsAtMs = Math.max(durationEndMs, maxContestEndMs);
+      } else {
+        endsAtMs = Math.min(durationEndMs, maxContestEndMs);
+      }
     }
   }
 

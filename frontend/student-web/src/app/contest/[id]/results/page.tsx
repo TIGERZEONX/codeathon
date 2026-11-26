@@ -1,7 +1,9 @@
 'use client';
+import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { contestApi, leaderboardApi } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { Spinner } from '@/components/ui/Spinner';
 import { ResultsSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
@@ -50,6 +52,26 @@ export default function ResultsPage() {
 
   const rawAttempt: any = (attemptData as any)?.attempt || attemptData;
   const contestInfo: any = (attemptData as any)?.contest || {};
+
+  // If attempt was revoked/unlocked, redirect student directly to attempt page
+  useEffect(() => {
+    if (rawAttempt?.status === 'in_progress') {
+      router.replace(`/contest/${id}/attempt`);
+    }
+  }, [rawAttempt?.status, id, router]);
+
+  // Real-time listener: if admin revokes/unlocks while student is viewing results, redirect to attempt page
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !id) return;
+    const onRevoked = () => {
+      router.replace(`/contest/${id}/attempt`);
+    };
+    socket.on('attempt:revoked', onRevoked);
+    return () => {
+      socket.off('attempt:revoked', onRevoked);
+    };
+  }, [id, router]);
 
   if (!rawAttempt) {
     return (
