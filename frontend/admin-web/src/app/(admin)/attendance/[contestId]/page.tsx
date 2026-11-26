@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { attendanceApi, contestsApi } from '@/lib/api';
 import { Table } from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
@@ -50,6 +50,17 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
+
+  const queryClient = useQueryClient();
+
+  const markMutation = useMutation({
+    mutationFn: ({ userId, status }: { userId: string; status: string }) =>
+      attendanceApi.mark(contestId, userId, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance', contestId] });
+      refetch();
+    },
+  });
 
   const { data: contestData } = useQuery({
     queryKey: ['contest', contestId],
@@ -180,6 +191,41 @@ export default function AttendancePage() {
       ),
     },
     {
+      key: 'actions',
+      header: 'Edit Attendance',
+      render: (r: AttendanceRecord) => {
+        const uId = r.userId || r.participantId || r.id || r._id;
+        const currentStatus = r.status || 'absent';
+        return (
+          <div className="flex items-center gap-1.5">
+            <select
+              value={currentStatus === 'completed' ? 'present' : currentStatus}
+              onChange={(e) => {
+                const newStatus = e.target.value;
+                if (uId) {
+                  markMutation.mutate({ userId: uId, status: newStatus });
+                }
+              }}
+              disabled={markMutation.isPending}
+              className={`text-xs font-semibold rounded-lg px-2.5 py-1 border transition-colors cursor-pointer focus:outline-hidden ${
+                currentStatus === 'present' || currentStatus === 'completed'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'bg-slate-50 text-slate-700 border-slate-300'
+              }`}
+            >
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+            </select>
+            {currentStatus === 'completed' && (
+              <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded">
+                Submitted
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       key: 'startedAt',
       header: 'Login Check-in',
       render: (r: AttendanceRecord) => (
@@ -244,15 +290,6 @@ export default function AttendancePage() {
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-          >
-            Direct CSV
-          </Button>
-
           <Button
             variant="outline"
             size="sm"

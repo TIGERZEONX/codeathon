@@ -419,7 +419,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   };
 
   return (
-    <div className={`flex-1 flex overflow-hidden bg-[#0D1117] relative select-none ${className}`}>
+    <div
+      onClick={() => textareaRef.current?.focus()}
+      className={`flex-1 flex overflow-hidden bg-[#0D1117] relative ${className}`}
+    >
       {/* Line Numbers Gutter */}
       <div
         ref={gutterRef}
@@ -448,7 +451,10 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       </div>
 
       {/* Editor Content Area: Syntax Highlight Layer + Interactive Transparent Textarea */}
-      <div className="relative flex-1 h-full overflow-hidden">
+      <div
+        onClick={() => textareaRef.current?.focus()}
+        className="relative flex-1 h-full overflow-hidden cursor-text"
+      >
         {/* Syntax Highlighted Render (Underneath) */}
         <pre
           ref={preRef}
@@ -498,7 +504,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
             caretColor: '#58A6FF',
             tabSize: 4,
           }}
-          className="absolute inset-0 w-full h-full font-mono bg-transparent resize-none outline-none border-none overflow-auto whitespace-pre leading-6 selection:bg-[#3760F8]/40 focus:ring-0 focus:outline-none"
+          className="absolute inset-0 w-full h-full font-mono bg-transparent resize-none outline-none border-none overflow-auto whitespace-pre leading-6 select-text selection:bg-[#3760F8]/40 focus:ring-0 focus:outline-none"
         />
       </div>
     </div>

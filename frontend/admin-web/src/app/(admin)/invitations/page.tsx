@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useMemo, Suspense, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { contestsApi, invitationsApi } from '@/lib/api';
@@ -19,6 +19,8 @@ import {
   Filter,
   ShieldCheck,
   RotateCcw,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 function InvitationsContent() {
@@ -27,6 +29,8 @@ function InvitationsContent() {
   const initialContestId = searchParams.get('contestId') || '';
 
   const [selectedContestId, setSelectedContestId] = useState<string>(initialContestId);
+  const [isContestDropdownOpen, setIsContestDropdownOpen] = useState(false);
+  const contestDropdownRef = useRef<HTMLDivElement>(null);
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'delivered' | 'pending' | 'failed'>('all');
@@ -34,6 +38,17 @@ function InvitationsContent() {
   const [previewCandidate, setPreviewCandidate] = useState<any>(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
   const [actionErrorMsg, setActionErrorMsg] = useState('');
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (contestDropdownRef.current && !contestDropdownRef.current.contains(e.target as Node)) {
+        setIsContestDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch contests list
   const { data: contestsRaw } = useQuery({
@@ -155,26 +170,73 @@ function InvitationsContent() {
           </p>
         </div>
 
-        {/* Contest Selector */}
-        <div className="flex items-center gap-2">
+        {/* Sleek Custom Contest Selector */}
+        <div className="flex items-center gap-2" ref={contestDropdownRef}>
           <label className="text-xs font-semibold text-slate-500 whitespace-nowrap">Contest:</label>
-          <select
-            value={activeContestId}
-            onChange={(e) => {
-              setSelectedContestId(e.target.value);
-              setSelectedParticipantIds(new Set());
-            }}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-50 border border-slate-300 text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#3760F8]"
-          >
-            {contests.map((c: any) => {
-              const cid = c.id || c._id;
+          <div className="relative">
+            {(() => {
+              const currentContestObj = contests.find((c: any) => (c.id || c._id) === activeContestId) || contests[0];
               return (
-                <option key={cid} value={cid}>
-                  {c.title} (Batch: {c.batchCode || 'N/A'})
-                </option>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsContestDropdownOpen((prev) => !prev)}
+                    className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 border border-slate-200/90 text-slate-800 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-[#3760F8]/30 transition-all min-w-[240px] max-w-[340px] cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span className="truncate">{currentContestObj?.title || 'Select Contest'}</span>
+                      {currentContestObj?.batchCode && (
+                        <span className="text-[10px] font-mono font-bold bg-[#EEF2FF] text-[#3760F8] px-1.5 py-0.5 rounded-md shrink-0">
+                          {currentContestObj.batchCode}
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isContestDropdownOpen ? 'rotate-180 text-[#3760F8]' : ''}`} />
+                  </button>
+
+                  {isContestDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-1.5 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-3 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Available Assessments
+                      </div>
+                      <div className="max-h-60 overflow-y-auto py-1 divide-y divide-slate-50">
+                        {contests.map((c: any) => {
+                          const cid = c.id || c._id;
+                          const isSelected = cid === activeContestId;
+                          return (
+                            <button
+                              key={cid}
+                              type="button"
+                              onClick={() => {
+                                setSelectedContestId(cid);
+                                setSelectedParticipantIds(new Set());
+                                setIsContestDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-50 transition-colors cursor-pointer ${
+                                isSelected ? 'bg-[#EEF2FF]/80 text-[#3760F8] font-bold' : 'text-slate-700 font-medium'
+                              }`}
+                            >
+                              <div className="flex flex-col truncate pr-2">
+                                <span className="truncate">{c.title}</span>
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  Batch: <strong className="text-slate-600">{c.batchCode || 'N/A'}</strong>
+                                </span>
+                              </div>
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full bg-[#3760F8] text-white flex items-center justify-center shrink-0">
+                                  <Check className="w-3 h-3 stroke-[3]" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               );
-            })}
-          </select>
+            })()}
+          </div>
 
           <button
             onClick={() => refetch()}

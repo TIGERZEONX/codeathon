@@ -1,5 +1,6 @@
 import { attendanceRepository } from './attendance.repository.js';
 import { participantRepository } from '../participants/participants.repository.js';
+import { userRepository } from '../users/users.repository.js';
 import { teamRepository } from '../teams/teams.repository.js';
 import { assignmentRepository } from '../assignments/assignments.repository.js';
 import { contestRepository } from '../contests/contests.repository.js';
@@ -11,6 +12,7 @@ export class AttendanceService {
     const records = await attendanceRepository.findByContest(contestId);
     const assignments = await assignmentRepository.findByContest(contestId);
     const allParticipants = await participantRepository.find({});
+    const allUsers = await userRepository.find({});
     const allTeams = await teamRepository.find({});
 
     // Build complete roster of assigned participants (whether they have started or not)
@@ -30,19 +32,28 @@ export class AttendanceService {
 
     for (const pId of relevantParticipantIds) {
       const participant = allParticipants.find((p) => String(p.id) === String(pId) || String(p._id) === String(pId));
+      const user = allUsers.find((u) => String(u.id) === String(pId) || String(u._id) === String(pId));
       const record = records.find((r) => String(r.userId) === String(pId));
       const team = participant?.teamId ? allTeams.find((t) => String(t.id) === String(participant.teamId)) : null;
+
+      const resolvedName = user?.name || participant?.name || record?.userName || 'Candidate';
+      const resolvedEmail = user?.email || participant?.email || record?.userEmail || '—';
+      const resolvedRoll = user?.rollNumber || participant?.rollNumber || record?.rollNumber || '—';
+      const resolvedDept = user?.department || participant?.department || '—';
+
+      const checkinTime = record?.testStartTimestamp || record?.startedAt || record?.loginTimestamp || null;
+      const turninTime = record?.submitTimestamp || record?.submittedAt || null;
 
       roster.push({
         id: record?.id || `att_${pId}`,
         _id: record?.id || `att_${pId}`,
         userId: pId,
         participantId: pId,
-        participantName: participant?.name || record?.userName || 'Candidate',
-        email: participant?.email || record?.userEmail || '—',
-        rollNumber: participant?.rollNumber || record?.rollNumber || '—',
-        name: participant?.name || record?.userName || 'Candidate',
-        department: participant?.department || '—',
+        participantName: resolvedName,
+        email: resolvedEmail,
+        rollNumber: resolvedRoll,
+        name: resolvedName,
+        department: resolvedDept,
         contestTitle: contest?.title || 'Assessment Contest',
         batchCode: contest?.batchCode || '—',
         teamId: team?.id || null,
@@ -50,10 +61,10 @@ export class AttendanceService {
         status: record?.status || 'absent',
         loginStatus: record?.loginStatus || (record?.status ? 'Logged in' : 'Not logged in'),
         loginTimestamp: record?.loginTimestamp || null,
-        testStartTimestamp: record?.testStartTimestamp || null,
-        submitTimestamp: record?.submitTimestamp || null,
-        startedAt: record?.testStartTimestamp || null,
-        submittedAt: record?.submitTimestamp || null,
+        testStartTimestamp: checkinTime,
+        submitTimestamp: turninTime,
+        startedAt: checkinTime,
+        submittedAt: turninTime,
         durationMinutes: record?.durationMinutes || 0,
       });
     }

@@ -96,12 +96,13 @@ export function exportAttendancePdf({
   doc.setTextColor(239, 68, 68); // Red
   doc.text(`${absent}`, 163, 42);
 
-  // 3. Table Rows
+  // 3. Table Rows (Department removed; Candidate Email, Check-in Time, and Turn-in Time emphasized)
   const tableData = records.map((r, index) => {
     const candidateName = r.name || r.participantName || r.userName || 'Candidate';
     const rollNo = r.rollNumber && r.rollNumber !== 'null' ? r.rollNumber : '—';
-    const email = r.email && r.email !== '—' ? r.email : '—';
-    const dept = r.department && r.department !== '—' ? r.department : '—';
+    const email = r.email && r.email !== '—' && r.email !== 'null'
+      ? r.email
+      : ((r as any).userEmail && (r as any).userEmail !== '—' ? (r as any).userEmail : '—');
     const team = r.teamName || 'Individual';
     const statusLabel =
       r.status === 'completed'
@@ -110,11 +111,14 @@ export function exportAttendancePdf({
         ? 'Present'
         : 'Absent';
 
+    const checkinRaw = r.startedAt || (r as any).testStartTimestamp || (r as any).loginTimestamp;
+    const turninRaw = r.submittedAt || (r as any).submitTimestamp;
+
     const formatT = (t?: string | null) => {
       if (!t) return '—';
       try {
         const d = new Date(t);
-        return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
       } catch {
         return '—';
       }
@@ -125,11 +129,10 @@ export function exportAttendancePdf({
       rollNo,
       candidateName,
       email,
-      dept,
       team,
       statusLabel,
-      formatT(r.startedAt),
-      formatT(r.submittedAt),
+      formatT(checkinRaw),
+      formatT(turninRaw),
       `${r.durationMinutes || 0}m`,
     ];
   });
@@ -142,12 +145,11 @@ export function exportAttendancePdf({
         '#',
         'Roll No.',
         'Candidate Name',
-        'Email Address',
-        'Department',
+        'Candidate Email',
         'Team Allocation',
         'Status',
-        'Check-in',
-        'Turn-in',
+        'Check-in Time',
+        'Turn-in Time',
         'Duration',
       ],
     ],
@@ -169,20 +171,19 @@ export function exportAttendancePdf({
       fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 26, fontStyle: 'bold' },
-      2: { cellWidth: 40 },
-      3: { cellWidth: 48 },
-      4: { cellWidth: 28 },
-      5: { cellWidth: 30 },
-      6: { cellWidth: 24, fontStyle: 'bold' },
-      7: { cellWidth: 22 },
-      8: { cellWidth: 22 },
-      9: { cellWidth: 19, halign: 'center' },
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 30, fontStyle: 'bold' },
+      2: { cellWidth: 46 },
+      3: { cellWidth: 60 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 25, fontStyle: 'bold' },
+      6: { cellWidth: 25 },
+      7: { cellWidth: 25 },
+      8: { cellWidth: 18, halign: 'center' },
     },
     didDrawCell: (data) => {
       // Highlight Status column
-      if (data.section === 'body' && data.column.index === 6) {
+      if (data.section === 'body' && data.column.index === 5) {
         const val = String(data.cell.raw);
         if (val === 'Submitted') {
           doc.setTextColor(55, 96, 248);

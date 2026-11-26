@@ -331,6 +331,13 @@ export default function AttemptPage() {
     }
   }, [attempt, handleExpire]);
 
+  // If attempt was already submitted, redirect candidate immediately to results
+  useEffect(() => {
+    if (attempt?.status === 'submitted' || attempt?.status === 'graded') {
+      router.replace(`/contest/${contestId}/results`);
+    }
+  }, [attempt?.status, contestId, router]);
+
   useEffect(() => {
     if (remaining <= 0) return;
     const interval = setInterval(() => {
@@ -638,18 +645,34 @@ export default function AttemptPage() {
   // Option selection
   const handleSelectOption = (optId: string) => {
     if (!qId) return;
+    if (attempt?.status === 'submitted' || attempt?.status === 'graded') {
+      router.replace(`/contest/${contestId}/results`);
+      return;
+    }
     setAnswers((prev) => {
+      const prevAns = prev[qId];
+      const prevSelected = prevAns?.selectedOptions || [];
+      let newSelected: string[];
+
+      if (activeQuestion?.isMultiSelect) {
+        newSelected = prevSelected.includes(optId)
+          ? prevSelected.filter((id) => id !== optId)
+          : [...prevSelected, optId];
+      } else {
+        newSelected = prevSelected.includes(optId) ? [] : [optId];
+      }
+
       const next = {
         ...prev,
         [qId]: {
-          ...prev[qId],
-          selectedOptions: [optId],
+          ...prevAns,
+          selectedOptions: newSelected,
         },
       };
       contestApi
         .saveAnswer(contestId, {
           questionId: qId,
-          selectedOptions: [optId],
+          selectedOptions: newSelected,
           isMarkedForReview: markedForReview.has(qId),
         })
         .catch(() => {});
@@ -1145,8 +1168,14 @@ export default function AttemptPage() {
                         ? activeQuestion.mcqOptions
                         : ((activeQuestion as any).options || [])
                       ).map((opt: any, oIdx: number) => {
-                        const optKey = opt.id || String(oIdx);
-                        const isSelected = (currentAnswer?.selectedOptions || []).includes(optKey);
+                        const optKey = String(opt.id || opt._id || oIdx);
+                        const isSelected = (currentAnswer?.selectedOptions || []).some(
+                          (so: any) =>
+                            String(so) === optKey ||
+                            (opt.id && String(so) === String(opt.id)) ||
+                            (opt._id && String(so) === String(opt._id)) ||
+                            String(so) === String(oIdx)
+                        );
                         const letter = String.fromCharCode(65 + oIdx);
 
                         return (
@@ -1308,8 +1337,14 @@ export default function AttemptPage() {
                   ? activeQuestion.mcqOptions
                   : ((activeQuestion as any).options || [])
                 ).map((opt: any, oIdx: number) => {
-                  const optKey = opt.id || String(oIdx);
-                  const isSelected = (currentAnswer?.selectedOptions || []).includes(optKey);
+                  const optKey = String(opt.id || opt._id || oIdx);
+                  const isSelected = (currentAnswer?.selectedOptions || []).some(
+                    (so: any) =>
+                      String(so) === optKey ||
+                      (opt.id && String(so) === String(opt.id)) ||
+                      (opt._id && String(so) === String(opt._id)) ||
+                      String(so) === String(oIdx)
+                  );
                   const letter = String.fromCharCode(65 + oIdx);
 
                   return (
@@ -1486,6 +1521,7 @@ export default function AttemptPage() {
 
               {/* Code Editor with Syntax Highlighting, Intelligent Indentation, and Line Numbers */}
               <CodeEditor
+                key={`${qId}-${currentAnswer?.language || 'python'}`}
                 value={
                   currentAnswer?.code !== undefined
                     ? currentAnswer.code

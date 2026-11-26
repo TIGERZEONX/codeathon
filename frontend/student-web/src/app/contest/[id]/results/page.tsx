@@ -1,5 +1,5 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { contestApi, leaderboardApi } from '@/lib/api';
@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ResultsSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles, Calendar, User } from 'lucide-react';
+import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles, Calendar, User, ArrowUpDown, Filter } from 'lucide-react';
 
 interface LeaderboardEntry {
   rank: number;
@@ -34,6 +34,12 @@ interface AttemptResult {
 export default function ResultsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [sortFilter, setSortFilter] = useState<'score_desc_time_asc' | 'score_desc_time_desc' | 'time_asc_score_desc' | 'score_asc_time_asc' | 'time_desc_score_asc'>('score_desc_time_asc');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data: attemptData, isLoading } = useQuery({
     queryKey: ['attempt-result', id],
@@ -45,10 +51,6 @@ export default function ResultsPage() {
     queryFn: () => leaderboardApi.get(id).catch(() => null),
     retry: false,
   });
-
-  if (isLoading) {
-    return <ResultsSkeleton />;
-  }
 
   const rawAttempt: any = (attemptData as any)?.attempt || attemptData;
   const contestInfo: any = (attemptData as any)?.contest || {};
@@ -72,6 +74,67 @@ export default function ResultsPage() {
       socket.off('attempt:revoked', onRevoked);
     };
   }, [id, router]);
+
+  const rawEntries: any = (lbData as any)?.entries || (Array.isArray(lbData) ? lbData : []);
+  const leaderboard: (LeaderboardEntry & { displayRank?: number })[] = useMemo(() => {
+    const list: (LeaderboardEntry & { displayRank?: number })[] = rawEntries.map((e: any, idx: number) => {
+      const entrySecs = Number(e.completionTimeSeconds) || 0;
+      const fallbackFormatted = entrySecs > 0
+        ? (entrySecs >= 3600
+            ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60).toString().padStart(2, '0')}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
+            : entrySecs >= 60
+            ? `${Math.floor(entrySecs / 60)}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
+            : `${entrySecs}s`)
+        : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
+
+      return {
+        rank: e.rank || idx + 1,
+        displayName: e.displayName || e.name || 'Participant',
+        totalScore: e.totalScore ?? e.score ?? 0,
+        formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
+        completionTimeSeconds: entrySecs,
+        isCurrentUser: Boolean(
+          e.isCurrentUser ||
+          (rawAttempt?.userId && (e.userId === rawAttempt.userId || e.participantId === rawAttempt.userId))
+        ),
+      };
+    });
+
+    list.sort((a, b) => {
+      const aScore = a.totalScore;
+      const bScore = b.totalScore;
+      const aTime = (a.completionTimeSeconds && a.completionTimeSeconds > 0) ? a.completionTimeSeconds : 999999999;
+      const bTime = (b.completionTimeSeconds && b.completionTimeSeconds > 0) ? b.completionTimeSeconds : 999999999;
+
+      if (sortFilter === 'score_desc_time_asc') {
+        if (bScore !== aScore) return bScore - aScore;
+        return aTime - bTime;
+      }
+      if (sortFilter === 'score_desc_time_desc') {
+        if (bScore !== aScore) return bScore - aScore;
+        return bTime - aTime;
+      }
+      if (sortFilter === 'time_asc_score_desc') {
+        if (aTime !== bTime) return aTime - bTime;
+        return bScore - aScore;
+      }
+      if (sortFilter === 'score_asc_time_asc') {
+        if (aScore !== bScore) return aScore - bScore;
+        return aTime - bTime;
+      }
+      if (sortFilter === 'time_desc_score_asc') {
+        if (bTime !== aTime) return bTime - aTime;
+        return aScore - bScore;
+      }
+      return 0;
+    });
+
+    return list.map((item, idx) => ({ ...item, displayRank: idx + 1 }));
+  }, [rawEntries, sortFilter, rawAttempt?.userId]);
+
+  if (isLoading) {
+    return <ResultsSkeleton />;
+  }
 
   if (!rawAttempt) {
     return (
@@ -104,6 +167,7 @@ export default function ResultsPage() {
 
   const formatDateTime = (isoString?: string) => {
     if (!isoString) return '—';
+    if (!mounted) return '—';
     try {
       const d = new Date(isoString);
       return d.toLocaleDateString(undefined, {
@@ -118,30 +182,6 @@ export default function ResultsPage() {
       return isoString;
     }
   };
-
-  const rawEntries: any = (lbData as any)?.entries || (Array.isArray(lbData) ? lbData : []);
-  const leaderboard: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
-    const entrySecs = Number(e.completionTimeSeconds) || 0;
-    const fallbackFormatted = entrySecs > 0
-      ? (entrySecs >= 3600
-          ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60).toString().padStart(2, '0')}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
-          : entrySecs >= 60
-          ? `${Math.floor(entrySecs / 60)}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
-          : `${entrySecs}s`)
-      : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
-
-    return {
-      rank: e.rank || idx + 1,
-      displayName: e.displayName || e.name || 'Participant',
-      totalScore: e.totalScore ?? e.score ?? 0,
-      formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
-      completionTimeSeconds: entrySecs,
-      isCurrentUser: Boolean(
-        e.isCurrentUser ||
-        (rawAttempt?.userId && (e.userId === rawAttempt.userId || e.participantId === rawAttempt.userId))
-      ),
-    };
-  });
 
   const userLeaderboardEntry = leaderboard.find((e) => e.isCurrentUser);
   const isInTop10 = leaderboard.slice(0, 10).some((e) => e.isCurrentUser);
@@ -283,19 +323,35 @@ export default function ResultsPage() {
         {/* Leaderboard */}
         {showTotalPointsEarned && leaderboard.length > 0 && (
           <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <div className="flex items-center gap-2">
                   <Trophy className="w-5 h-5 text-[#3760F8]" />
                   <h2 className="text-base font-bold text-slate-900 tracking-tight">Contest Leaderboard</h2>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Ranking Criteria: 1. Highest Marks &bull; 2. Fastest Submission Time
+                  Official Standard: 1. Highest Marks &bull; 2. Fastest Submission Time
                 </p>
               </div>
-              <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-full self-start sm:self-auto">
-                Top Standings
-              </span>
+
+              {/* Sort Filter Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                  <ArrowUpDown className="w-3.5 h-3.5 text-[#3760F8]" />
+                  Sort:
+                </span>
+                <select
+                  value={sortFilter}
+                  onChange={(e) => setSortFilter(e.target.value as any)}
+                  className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-[#3760F8]/20 focus:border-[#3760F8] transition-all cursor-pointer shadow-2xs"
+                >
+                  <option value="score_desc_time_asc">Highest Score &bull; Shortest Time (Official)</option>
+                  <option value="score_desc_time_desc">Highest Score &bull; Longest Time</option>
+                  <option value="time_asc_score_desc">Shortest Time &bull; Highest Score</option>
+                  <option value="score_asc_time_asc">Lowest Score &bull; Shortest Time</option>
+                  <option value="time_desc_score_asc">Longest Time &bull; Lowest Score</option>
+                </select>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -310,14 +366,14 @@ export default function ResultsPage() {
                 >
                   <span
                     className={`w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold ${
-                      entry.rank === 1
+                      (entry.displayRank || entry.rank) === 1
                         ? 'bg-[#D3FE4F] text-[#0B0F19] shadow-xs'
-                        : entry.rank <= 3
+                        : (entry.displayRank || entry.rank) <= 3
                         ? 'bg-[#3760F8] text-white shadow-xs'
                         : 'bg-white border border-slate-200 text-slate-700'
                     }`}
                   >
-                    #{entry.rank}
+                    #{entry.displayRank || entry.rank}
                   </span>
                   <span className="flex-1 text-sm font-semibold text-slate-800 tracking-tight">
                     {entry.displayName} {entry.isCurrentUser && <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>}
@@ -341,7 +397,7 @@ export default function ResultsPage() {
                   </span>
                   <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#EEF2FF] border border-[#C7D2FE]">
                     <span className="w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold bg-[#3760F8] text-white shadow-xs">
-                      #{userLeaderboardEntry.rank}
+                      #{userLeaderboardEntry.displayRank || userLeaderboardEntry.rank}
                     </span>
                     <span className="flex-1 text-sm font-semibold text-slate-800 tracking-tight">
                       {userLeaderboardEntry.displayName} <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>

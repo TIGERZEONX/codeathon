@@ -223,14 +223,6 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleExport}
-            leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
-          >
-            CSV
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={() =>
               exportAttendanceExcel({
                 contestTitle: 'Contest Attendance',
@@ -239,7 +231,7 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
             }
             leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
           >
-            Excel
+            Direct Excel
           </Button>
           <Button
             variant="primary"

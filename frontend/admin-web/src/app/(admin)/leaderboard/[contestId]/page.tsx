@@ -1,14 +1,16 @@
 'use client';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { leaderboardApi, contestsApi } from '@/lib/api';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import Link from 'next/link';
-import { ArrowLeft, Trophy, Lock, Clock, Award } from 'lucide-react';
+import { ArrowLeft, Trophy, Lock, Clock, Award, ArrowUpDown } from 'lucide-react';
 
 interface LeaderboardEntry {
   rank: number;
+  displayRank?: number;
   participantId: string;
   displayName: string;
   rollNumber?: string;
@@ -22,6 +24,7 @@ interface LeaderboardEntry {
 
 export default function LeaderboardPage() {
   const { contestId } = useParams<{ contestId: string }>();
+  const [sortFilter, setSortFilter] = useState<'score_desc_time_asc' | 'score_desc_time_desc' | 'time_asc_score_desc' | 'score_asc_time_asc' | 'time_desc_score_asc'>('score_desc_time_asc');
 
   const { data: contestData } = useQuery({ queryKey: ['contest', contestId], queryFn: () => contestsApi.get(contestId) });
   const contest = contestData as { title?: string } | null;
@@ -34,27 +37,61 @@ export default function LeaderboardPage() {
 
   const rawData: any = (lbData as any)?.data || lbData;
   const rawEntries: any = rawData?.entries || (Array.isArray(rawData) ? rawData : []);
-  const entries: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
-    const secs = e.completionTimeSeconds || 0;
-    const fallbackFormatted = secs > 0
-      ? (secs >= 3600
-          ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ${secs % 60}s`
-          : `${Math.floor(secs / 60)}m ${secs % 60}s`)
-      : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
+  const entries: LeaderboardEntry[] = useMemo(() => {
+    const list: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
+      const secs = e.completionTimeSeconds || 0;
+      const fallbackFormatted = secs > 0
+        ? (secs >= 3600
+            ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ${secs % 60}s`
+            : `${Math.floor(secs / 60)}m ${secs % 60}s`)
+        : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
 
-    return {
-      rank: e.rank || idx + 1,
-      participantId: e.participantId || e.userId || `user_${idx}`,
-      displayName: e.displayName || e.name || 'Candidate',
-      rollNumber: e.rollNumber || '—',
-      totalScore: e.totalScore ?? e.score ?? 0,
-      mcqScore: e.mcqScore ?? 0,
-      codingScore: e.codingScore ?? 0,
-      completionTimeSeconds: secs,
-      formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
-      timeTakenMinutes: e.timeTakenMinutes ?? (secs ? Math.round(secs / 60) : 0),
-    };
-  });
+      return {
+        rank: e.rank || idx + 1,
+        participantId: e.participantId || e.userId || `user_${idx}`,
+        displayName: e.displayName || e.name || 'Candidate',
+        rollNumber: e.rollNumber || '—',
+        totalScore: e.totalScore ?? e.score ?? 0,
+        mcqScore: e.mcqScore ?? 0,
+        codingScore: e.codingScore ?? 0,
+        completionTimeSeconds: secs,
+        formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
+        timeTakenMinutes: e.timeTakenMinutes ?? (secs ? Math.round(secs / 60) : 0),
+      };
+    });
+
+    list.sort((a, b) => {
+      const aScore = a.totalScore;
+      const bScore = b.totalScore;
+      const aTime = (a.completionTimeSeconds && a.completionTimeSeconds > 0) ? a.completionTimeSeconds : 999999999;
+      const bTime = (b.completionTimeSeconds && b.completionTimeSeconds > 0) ? b.completionTimeSeconds : 999999999;
+
+      if (sortFilter === 'score_desc_time_asc') {
+        if (bScore !== aScore) return bScore - aScore;
+        return aTime - bTime;
+      }
+      if (sortFilter === 'score_desc_time_desc') {
+        if (bScore !== aScore) return bScore - aScore;
+        return bTime - aTime;
+      }
+      if (sortFilter === 'time_asc_score_desc') {
+        if (aTime !== bTime) return aTime - bTime;
+        return bScore - aScore;
+      }
+      if (sortFilter === 'score_asc_time_asc') {
+        if (aScore !== bScore) return aScore - bScore;
+        return aTime - bTime;
+      }
+      if (sortFilter === 'time_desc_score_asc') {
+        if (bTime !== aTime) return bTime - aTime;
+        return aScore - bScore;
+      }
+      return 0;
+    });
+
+    return list.map((item, idx) => ({ ...item, displayRank: idx + 1 }));
+  }, [rawEntries, sortFilter]);
+
   const isFrozen = rawData?.isFrozen || rawData?.frozen;
 
   return (
@@ -88,17 +125,33 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* Ranking Criteria Callout */}
-      <div className="bg-slate-50 border border-slate-200/90 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600">
+      {/* Ranking Criteria Callout & Dynamic Sort Filter */}
+      <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs text-slate-600 shadow-2xs">
         <div className="flex items-center gap-2">
           <Award className="w-4 h-4 text-[#3760F8] shrink-0" />
           <span>
-            <strong className="text-slate-800">Ranking Criteria:</strong> 1. <strong>Highest Score</strong> (total marks earned) &bull; 2. <strong>Fastest Submission</strong> (shortest completion time receives higher rank in ties).
+            <strong className="text-slate-800">Standard Criteria:</strong> 1. <strong>Highest Score</strong> &bull; 2. <strong>Fastest Submission</strong>.
           </span>
         </div>
-        <span className="text-[11px] font-mono text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded-md self-start sm:self-auto">
-          Tie-Breaker: Completion Time
-        </span>
+
+        {/* Multi-Criteria Sort Selector */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <ArrowUpDown className="w-3.5 h-3.5 text-[#3760F8]" />
+            Sort:
+          </span>
+          <select
+            value={sortFilter}
+            onChange={(e) => setSortFilter(e.target.value as any)}
+            className="text-xs font-semibold bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-[#3760F8]/20 focus:border-[#3760F8] transition-all cursor-pointer shadow-2xs"
+          >
+            <option value="score_desc_time_asc">Highest Score &bull; Shortest Time (Official)</option>
+            <option value="score_desc_time_desc">Highest Score &bull; Longest Time</option>
+            <option value="time_asc_score_desc">Shortest Time &bull; Highest Score</option>
+            <option value="score_asc_time_asc">Lowest Score &bull; Shortest Time</option>
+            <option value="time_desc_score_asc">Longest Time &bull; Lowest Score</option>
+          </select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -128,13 +181,13 @@ export default function LeaderboardPage() {
                     <tr key={entry.participantId} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-5 py-3.5">
                         <span className={`w-7 h-7 inline-flex items-center justify-center rounded-xl text-xs font-bold ${
-                          entry.rank === 1
+                          (entry.displayRank || entry.rank) === 1
                             ? 'bg-[#D3FE4F] text-[#0B0F19] shadow-xs'
-                            : entry.rank <= 3
+                            : (entry.displayRank || entry.rank) <= 3
                             ? 'bg-[#3760F8] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-600'
                         }`}>
-                          #{entry.rank}
+                          #{entry.displayRank || entry.rank}
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-xs font-semibold text-slate-900 tracking-tight">
