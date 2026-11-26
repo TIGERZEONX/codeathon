@@ -110,7 +110,24 @@ export class QuestionsService {
   async updateQuestion(id, updates) {
     const q = await questionRepository.findById(id);
     if (!q) throw ApiError.notFound('Question not found');
-    return questionRepository.update(id, updates);
+
+    const merged = { ...updates };
+    if (updates.codingConfig && q.codingConfig) {
+      merged.codingConfig = {
+        ...q.codingConfig,
+        ...updates.codingConfig,
+        starterCode: {
+          ...(q.codingConfig.starterCode || {}),
+          ...(updates.codingConfig.starterCode || {}),
+        },
+        displayToggles: {
+          ...(q.codingConfig.displayToggles || {}),
+          ...(updates.codingConfig.displayToggles || {}),
+        },
+      };
+    }
+
+    return questionRepository.update(id, merged);
   }
 
   async toggleFieldDisplay(id, toggleUpdates) {

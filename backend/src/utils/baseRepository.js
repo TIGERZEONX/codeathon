@@ -155,7 +155,13 @@ export class BaseRepository {
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const col = mongoose.connection.collection(this.name);
-        await col.updateOne({ id: String(id) }, { $set: item }, { upsert: true });
+        const filter = {
+          $or: [{ id: String(id) }, { _id: String(id) }],
+        };
+        if (mongoose.Types.ObjectId.isValid(String(id))) {
+          filter.$or.push({ _id: new mongoose.Types.ObjectId(String(id)) });
+        }
+        await col.updateOne(filter, { $set: item }, { upsert: true });
       } catch (err) {
         logger.warn(`Failed to persist created ${this.name} to MongoDB: ${err.message}`);
       }
@@ -182,7 +188,13 @@ export class BaseRepository {
     if (mongoose.connection && mongoose.connection.readyState === 1) {
       try {
         const col = mongoose.connection.collection(this.name);
-        await col.updateOne({ id: String(id) }, { $set: updated }, { upsert: true });
+        const filter = {
+          $or: [{ id: String(id) }, { _id: String(id) }],
+        };
+        if (mongoose.Types.ObjectId.isValid(String(id))) {
+          filter.$or.push({ _id: new mongoose.Types.ObjectId(String(id)) });
+        }
+        await col.updateOne(filter, { $set: updated }, { upsert: true });
       } catch (err) {
         logger.warn(`Failed to persist updated ${this.name} to MongoDB: ${err.message}`);
       }

@@ -63,11 +63,14 @@ interface Question {
       output?: string;
       isHidden?: boolean;
       isSample?: boolean;
+      weight?: number;
+      explanation?: string;
     }>;
   };
 }
 
 interface McqOption {
+  id?: string;
   text: string;
   isCorrect: boolean;
 }
@@ -426,7 +429,11 @@ export default function ContestDetailPage() {
     setEditQModal(q);
     if (q.type === 'mcq') {
       const opts = (q.mcqOptions && q.mcqOptions.length > 0)
-        ? q.mcqOptions.map((o: any) => ({ text: o.text || '', isCorrect: Boolean(o.isCorrect) }))
+        ? q.mcqOptions.map((o: any, idx: number) => ({
+            id: o.id || `opt_${idx}`,
+            text: o.text || '',
+            isCorrect: Boolean(o.isCorrect),
+          }))
         : [...EMPTY_MCQ.options];
       setEditMcqForm({
         title: q.title || '',
@@ -438,10 +445,14 @@ export default function ContestDetailPage() {
       });
     } else {
       const tcs = (q.codingConfig?.testCases && q.codingConfig.testCases.length > 0)
-        ? q.codingConfig.testCases.map((tc: any) => ({
+        ? q.codingConfig.testCases.map((tc: any, idx: number) => ({
+            id: tc.id || `tc_${idx}`,
             input: tc.input || '',
             output: tc.expectedOutput || tc.output || '',
             isHidden: Boolean(tc.isHidden),
+            isSample: tc.isSample !== undefined ? tc.isSample : !tc.isHidden,
+            weight: tc.weight ?? 1,
+            explanation: tc.explanation || '',
           }))
         : [...EMPTY_CODING.testCases];
       setEditCodingForm({
@@ -468,10 +479,11 @@ export default function ContestDetailPage() {
         if (statement.length < 5) {
           throw new Error('Problem statement must be at least 5 characters');
         }
+        const existingOpts = editQModal.mcqOptions || [];
         const mcqOptions = editMcqForm.options
           .filter((o) => o.text.trim().length > 0)
-          .map((o, idx) => ({
-            id: `opt_${Date.now()}_${idx}`,
+          .map((o: any, idx) => ({
+            id: o.id || existingOpts[idx]?.id || `opt_${Date.now()}_${idx}`,
             text: o.text.trim(),
             isCorrect: Boolean(o.isCorrect),
           }));
@@ -495,14 +507,16 @@ export default function ContestDetailPage() {
         if (statement.length < 5) {
           throw new Error('Problem statement must be at least 5 characters');
         }
-        const testCases = editCodingForm.testCases.map((tc, idx) => ({
-          id: `tc_${Date.now()}_${idx}`,
+        const existingConfig = editQModal.codingConfig || {};
+        const existingTcs = existingConfig.testCases || [];
+        const testCases = editCodingForm.testCases.map((tc: any, idx) => ({
+          id: tc.id || existingTcs[idx]?.id || `tc_${Date.now()}_${idx}`,
           input: tc.input || '',
           expectedOutput: tc.output || '',
-          isSample: !tc.isHidden,
+          isSample: tc.isSample !== undefined ? tc.isSample : !tc.isHidden,
           isHidden: Boolean(tc.isHidden),
-          weight: 1,
-          explanation: '',
+          weight: tc.weight ?? existingTcs[idx]?.weight ?? 1,
+          explanation: tc.explanation || existingTcs[idx]?.explanation || '',
         }));
 
         return questionsApi.update(qId, {
@@ -511,16 +525,10 @@ export default function ContestDetailPage() {
           marks: Number(editCodingForm.marks) || 50,
           negativeMarks: Number(editCodingForm.negativeMarks) || 0,
           codingConfig: {
-            inputFormat: editCodingForm.inputFormat || '',
-            outputFormat: editCodingForm.outputFormat || '',
-            constraints: editCodingForm.constraints || '',
-            timeLimitMs: 2000,
-            memoryLimitMb: 256,
-            allowedLanguages: ['python', 'javascript', 'cpp', 'java'],
-            starterCode: {
-              python: '# Write your Python solution here\nimport sys\n\ndef solve():\n    lines = sys.stdin.read().splitlines()\n    # TODO\n\nif __name__ == "__main__":\n    solve()\n',
-              javascript: '// Write your JavaScript solution here\nconst fs = require("fs");\nconst input = fs.readFileSync(0, "utf-8").trim();\nconsole.log(input);\n',
-            },
+            ...existingConfig,
+            inputFormat: editCodingForm.inputFormat || existingConfig.inputFormat || '',
+            outputFormat: editCodingForm.outputFormat || existingConfig.outputFormat || '',
+            constraints: editCodingForm.constraints || existingConfig.constraints || '',
             testCases,
           },
         });
