@@ -15,6 +15,19 @@ import { ApiError } from '../../utils/ApiError.js';
 import { ATTEMPT_STATUS, CONTEST_STATUS, SUBMISSION_VERDICT } from '@codeathon/shared';
 import { getSocketServer } from '../../sockets/index.js';
 
+function formatDuration(secs) {
+  if (secs == null || isNaN(secs) || secs < 0) return '—';
+  const s = Math.max(0, Math.floor(secs));
+  if (s < 60) return `${s}s`;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const remainingSecs = s % 60;
+  if (h > 0) {
+    return `${h}h ${m.toString().padStart(2, '0')}m ${remainingSecs.toString().padStart(2, '0')}s`;
+  }
+  return `${m}m ${remainingSecs.toString().padStart(2, '0')}s`;
+}
+
 export class AttemptsService {
   async joinByBatchCode(batchCode, user) {
     if (!batchCode || !batchCode.trim()) {
@@ -130,6 +143,8 @@ export class AttemptsService {
                 endsAt: attempt.endsAt,
                 remainingSeconds,
                 finalScore: canShowScore ? score : null,
+                completionTimeSeconds: attempt.completionTimeSeconds,
+                formattedTimeTaken: formatDuration(attempt.completionTimeSeconds),
               }
             : null,
         });
@@ -479,6 +494,13 @@ export class AttemptsService {
     const codeRunCooldownSeconds = contest.codeRunCooldownSeconds ?? 30;
     const maxCodeSubmissions = contest.maxCodeSubmissions ?? 3;
 
+    const completionSecs = attempt.completionTimeSeconds != null
+      ? attempt.completionTimeSeconds
+      : (attempt.submittedAt && attempt.startedAt
+          ? Math.max(0, Math.floor((new Date(attempt.submittedAt).getTime() - new Date(attempt.startedAt).getTime()) / 1000))
+          : null);
+    const formattedTime = formatDuration(completionSecs);
+
     return {
       contest: {
         id: contest.id,
@@ -496,6 +518,9 @@ export class AttemptsService {
       attempt: {
         id: attempt.id,
         _id: attempt.id,
+        userId: attempt.userId,
+        userName: attempt.userName,
+        rollNumber: attempt.rollNumber,
         status: attempt.status,
         startedAt: attempt.startedAt,
         endsAt: timing.endsAt,
@@ -505,11 +530,15 @@ export class AttemptsService {
         mcqScore: canShowScore ? (attempt.mcqScore ?? 0) : null,
         codingScore: canShowScore ? (attempt.codingScore ?? 0) : null,
         submittedAt: attempt.submittedAt,
-        completionTimeSeconds: attempt.completionTimeSeconds,
+        completionTimeSeconds: completionSecs,
+        formattedTimeTaken: formattedTime,
       },
       id: attempt.id,
       _id: attempt.id,
       attemptId: attempt.id,
+      userId: attempt.userId,
+      userName: attempt.userName,
+      rollNumber: attempt.rollNumber,
       showTotalPointsEarned: contest.showTotalPointsEarned !== false,
       resultVisibility: contest.resultVisibility || 'immediate',
       totalScore: canShowScore ? (attempt.finalScore ?? attempt.totalScore ?? 0) : null,
@@ -518,6 +547,8 @@ export class AttemptsService {
       codingScore: canShowScore ? (attempt.codingScore ?? 0) : null,
       submittedAt: attempt.submittedAt,
       startedAt: attempt.startedAt,
+      completionTimeSeconds: completionSecs,
+      formattedTimeTaken: formattedTime,
       status: attempt.status,
       remainingSeconds: timing.remainingSeconds,
       sections: sectionList,
@@ -960,7 +991,11 @@ export class AttemptsService {
       });
     }
 
-    return updatedAttempt;
+    return {
+      ...updatedAttempt,
+      completionTimeSeconds,
+      formattedTimeTaken: formatDuration(completionTimeSeconds),
+    };
   }
 }
 

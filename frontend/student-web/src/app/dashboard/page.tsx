@@ -483,17 +483,25 @@ export default function DashboardPage() {
                               {contest.durationMinutes} mins
                             </span>
                             {isSubmitted && (
-                              contest.showTotalPointsEarned !== false && contest.resultVisibility !== 'hidden' && contest.attempt?.finalScore != null ? (
-                                <span className="flex items-center gap-1 font-bold text-[#3760F8]">
-                                  <Trophy className="w-3.5 h-3.5" />
-                                  Score: {contest.attempt.finalScore} pts
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-1 font-semibold text-emerald-600">
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Evaluation Recorded
-                                </span>
-                              )
+                              <>
+                                {contest.showTotalPointsEarned !== false && contest.resultVisibility !== 'hidden' && contest.attempt?.finalScore != null ? (
+                                  <span className="flex items-center gap-1 font-bold text-[#3760F8]">
+                                    <Trophy className="w-3.5 h-3.5" />
+                                    Score: {contest.attempt.finalScore} pts
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1 font-semibold text-emerald-600">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    Evaluation Recorded
+                                  </span>
+                                )}
+                                {(contest.attempt?.formattedTimeTaken || contest.attempt?.completionTimeSeconds) && (
+                                  <span className="flex items-center gap-1 text-slate-500 font-sans font-medium">
+                                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Time: <strong className="font-mono text-slate-800">{contest.attempt.formattedTimeTaken || `${Math.floor((contest.attempt.completionTimeSeconds || 0) / 60)}m ${(contest.attempt.completionTimeSeconds || 0) % 60}s`}</strong></span>
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>

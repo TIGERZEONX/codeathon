@@ -9,4 +9,6 @@ coverage
 *.log
 .DS_Store
 backend/data/*.json
+data/
+data/*.json
 *.tsbuildinfo

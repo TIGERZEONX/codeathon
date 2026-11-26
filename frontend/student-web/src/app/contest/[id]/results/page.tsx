@@ -6,7 +6,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ResultsSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles } from 'lucide-react';
+import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles, Calendar, User } from 'lucide-react';
 
 interface LeaderboardEntry {
   rank: number;
@@ -26,6 +26,7 @@ interface AttemptResult {
   submittedAt?: string;
   startedAt?: string;
   completionTimeSeconds?: number;
+  formattedTimeTaken?: string;
 }
 
 export default function ResultsPage() {
@@ -48,6 +49,8 @@ export default function ResultsPage() {
   }
 
   const rawAttempt: any = (attemptData as any)?.attempt || attemptData;
+  const contestInfo: any = (attemptData as any)?.contest || {};
+
   if (!rawAttempt) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-500 bg-slate-50">
@@ -61,20 +64,48 @@ export default function ResultsPage() {
   const codingScore = rawAttempt.codingScore ?? 0;
   const submittedAt = rawAttempt.submittedAt || rawAttempt.updatedAt;
   const startedAt = rawAttempt.startedAt;
-  const secs = rawAttempt.completionTimeSeconds || (submittedAt && startedAt ? Math.max(1, Math.floor((new Date(submittedAt).getTime() - new Date(startedAt).getTime()) / 1000)) : 0);
-  const formattedAttemptTime = secs > 0
-    ? (secs >= 3600
-        ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m ${secs % 60}s`
-        : `${Math.floor(secs / 60)}m ${secs % 60}s`)
-    : '—';
+  const secs = Number(rawAttempt.completionTimeSeconds) > 0
+    ? Number(rawAttempt.completionTimeSeconds)
+    : (submittedAt && startedAt
+        ? Math.max(1, Math.floor((new Date(submittedAt).getTime() - new Date(startedAt).getTime()) / 1000))
+        : 0);
+
+  const formattedAttemptTime = rawAttempt.formattedTimeTaken && rawAttempt.formattedTimeTaken !== '—'
+    ? rawAttempt.formattedTimeTaken
+    : (secs > 0
+        ? (secs >= 3600
+            ? `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60).toString().padStart(2, '0')}m ${(secs % 60).toString().padStart(2, '0')}s`
+            : secs >= 60
+            ? `${Math.floor(secs / 60)}m ${(secs % 60).toString().padStart(2, '0')}s`
+            : `${secs}s`)
+        : '—');
+
+  const formatDateTime = (isoString?: string) => {
+    if (!isoString) return '—';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+    } catch {
+      return isoString;
+    }
+  };
 
   const rawEntries: any = (lbData as any)?.entries || (Array.isArray(lbData) ? lbData : []);
   const leaderboard: LeaderboardEntry[] = rawEntries.map((e: any, idx: number) => {
-    const entrySecs = e.completionTimeSeconds || 0;
+    const entrySecs = Number(e.completionTimeSeconds) || 0;
     const fallbackFormatted = entrySecs > 0
       ? (entrySecs >= 3600
-          ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60)}m ${entrySecs % 60}s`
-          : `${Math.floor(entrySecs / 60)}m ${entrySecs % 60}s`)
+          ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60).toString().padStart(2, '0')}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
+          : entrySecs >= 60
+          ? `${Math.floor(entrySecs / 60)}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
+          : `${entrySecs}s`)
       : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
 
     return {
@@ -82,9 +113,16 @@ export default function ResultsPage() {
       displayName: e.displayName || e.name || 'Participant',
       totalScore: e.totalScore ?? e.score ?? 0,
       formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
-      isCurrentUser: e.isCurrentUser || e.userId === rawAttempt?.userId,
+      completionTimeSeconds: entrySecs,
+      isCurrentUser: Boolean(
+        e.isCurrentUser ||
+        (rawAttempt?.userId && (e.userId === rawAttempt.userId || e.participantId === rawAttempt.userId))
+      ),
     };
   });
+
+  const userLeaderboardEntry = leaderboard.find((e) => e.isCurrentUser);
+  const isInTop10 = leaderboard.slice(0, 10).some((e) => e.isCurrentUser);
 
   const showTotalPointsEarned =
     (attemptData as any)?.showTotalPointsEarned !== false &&
@@ -92,7 +130,7 @@ export default function ResultsPage() {
     (attemptData as any)?.contest?.resultVisibility !== 'hidden';
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="min-h-screen bg-slate-50 font-sans pb-16">
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-2xs">
         <div className="flex items-center gap-4">
           <button
@@ -102,7 +140,14 @@ export default function ResultsPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Dashboard</span>
           </button>
-          <h1 className="text-base font-bold text-slate-900 tracking-tight">Assessment Evaluation</h1>
+          <div>
+            <h1 className="text-base font-bold text-slate-900 tracking-tight">Assessment Evaluation</h1>
+            {contestInfo?.title && (
+              <p className="text-[11px] text-slate-400 font-medium truncate max-w-xs sm:max-w-md">
+                {contestInfo.title}
+              </p>
+            )}
+          </div>
         </div>
         <Badge color={rawAttempt.status === 'graded' || rawAttempt.status === 'submitted' ? 'green' : 'primary'} dot>
           {rawAttempt.status === 'graded' ? 'Graded & Verified' : 'Submitted'}
@@ -112,7 +157,7 @@ export default function ResultsPage() {
       <main className="max-w-3xl mx-auto px-4 py-8 sm:py-10 space-y-6">
         {/* Score Hero Card */}
         <div className="bg-white rounded-3xl border border-slate-200/80 p-8 text-center shadow-xs relative overflow-hidden">
-          <div className="inline-flex items-center gap-1.5 bg-[#EEF2FF] text-[#3760F8] px-3 py-1 rounded-full text-xs font-semibold mb-4">
+          <div className="inline-flex items-center gap-1.5 bg-[#EEF2FF] text-[#3760F8] px-3.5 py-1 rounded-full text-xs font-semibold mb-4">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Submission Recorded</span>
           </div>
@@ -122,9 +167,14 @@ export default function ResultsPage() {
               <div className="text-6xl sm:text-7xl font-extrabold text-[#3760F8] tracking-tight mb-1">
                 {totalScore}
               </div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-8">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
                 Total Marks Earned
               </p>
+
+              <div className="inline-flex items-center gap-2 bg-[#EEF2FF] border border-[#C7D2FE] px-4 py-1.5 rounded-full text-xs font-semibold text-[#3760F8] mb-8 shadow-2xs">
+                <Clock className="w-3.5 h-3.5 text-[#3760F8]" />
+                <span>Time Taken to Complete: <strong className="font-mono text-slate-900 ml-1">{formattedAttemptTime}</strong></span>
+              </div>
 
               <div className="grid grid-cols-3 gap-3 sm:gap-4 text-left">
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
@@ -136,8 +186,11 @@ export default function ResultsPage() {
                   <div className="text-xl font-bold text-slate-900 mt-1">{codingScore}</div>
                 </div>
                 <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Time Taken</span>
-                  <div className="text-xl font-bold text-slate-900 mt-1">{formattedAttemptTime}</div>
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#3760F8]" />
+                    Time Taken
+                  </span>
+                  <div className="text-xl font-bold text-slate-900 mt-1 font-mono">{formattedAttemptTime}</div>
                 </div>
               </div>
             </>
@@ -150,13 +203,59 @@ export default function ResultsPage() {
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
                 Your answers have been securely recorded. Total marks and evaluation scores are hidden by your administrator and will be released after cohort review.
               </p>
-              {formattedAttemptTime !== '—' && (
-                <div className="inline-block bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl text-xs text-slate-600 font-semibold mt-2">
-                  Total Duration: <span className="text-slate-900 font-mono">{formattedAttemptTime}</span>
-                </div>
-              )}
+              <div className="inline-flex items-center gap-2 bg-[#EEF2FF] border border-[#C7D2FE] px-4 py-2 rounded-xl text-xs text-[#3760F8] font-semibold mt-3 shadow-2xs">
+                <Clock className="w-4 h-4 text-[#3760F8]" />
+                <span>Time Taken to Complete: <strong className="text-slate-900 font-mono text-sm ml-1">{formattedAttemptTime}</strong></span>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Candidate Attempt & Time Details Card */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-6 sm:p-7 shadow-xs">
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#3760F8]" />
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Attempt &amp; Submission Summary</h2>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400">ID: {String(rawAttempt.id || rawAttempt._id || id).slice(-8)}</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100/90">
+              <div className="w-10 h-10 rounded-xl bg-blue-100/80 text-[#3760F8] flex items-center justify-center shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Time Taken to Complete</span>
+                <p className="text-sm font-extrabold text-slate-900 font-mono mt-0.5">{formattedAttemptTime}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100/90">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100/80 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Evaluation Status</span>
+                <p className="text-sm font-bold text-emerald-700 mt-0.5">
+                  {rawAttempt.status === 'graded' ? 'Graded & Verified' : 'Submitted Successfully'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-100/90">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Submitted Timestamp</span>
+                <p className="text-xs font-bold text-slate-800 font-mono mt-0.5">
+                  {formatDateTime(submittedAt)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Leaderboard */}
@@ -202,8 +301,8 @@ export default function ResultsPage() {
                     {entry.displayName} {entry.isCurrentUser && <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>}
                   </span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono text-slate-600 flex items-center gap-1.5 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
-                      <Clock className="w-3 h-3 text-slate-400" />
+                    <span className="text-xs font-mono text-slate-600 flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-md shadow-2xs" title="Time taken to complete contest">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
                       {entry.formattedTimeTaken || '—'}
                     </span>
                     <span className="text-sm font-extrabold text-[#3760F8] font-mono whitespace-nowrap">
@@ -212,6 +311,31 @@ export default function ResultsPage() {
                   </div>
                 </div>
               ))}
+
+              {userLeaderboardEntry && !isInTop10 && (
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
+                    Your Current Standings
+                  </span>
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-[#EEF2FF] border border-[#C7D2FE]">
+                    <span className="w-7 h-7 flex items-center justify-center rounded-xl text-xs font-bold bg-[#3760F8] text-white shadow-xs">
+                      #{userLeaderboardEntry.rank}
+                    </span>
+                    <span className="flex-1 text-sm font-semibold text-slate-800 tracking-tight">
+                      {userLeaderboardEntry.displayName} <span className="text-xs text-[#3760F8] font-normal ml-1">(You)</span>
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-slate-600 flex items-center gap-1.5 bg-white border border-slate-200 px-2.5 py-1 rounded-md shadow-2xs">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {userLeaderboardEntry.formattedTimeTaken || '—'}
+                      </span>
+                      <span className="text-sm font-extrabold text-[#3760F8] font-mono whitespace-nowrap">
+                        {userLeaderboardEntry.totalScore} Marks
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
