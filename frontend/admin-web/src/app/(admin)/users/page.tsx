@@ -141,11 +141,11 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['users'] });
       setDeleteId(null);
       setErrorMsg(null);
-      setSuccessMsg('Staff member revoked successfully');
+      setSuccessMsg('User account deleted successfully');
       setTimeout(() => setSuccessMsg(null), 4000);
     },
     onError: (err: any) => {
-      setErrorMsg(getErrorMessage(err, 'Failed to revoke staff access'));
+      setErrorMsg(getErrorMessage(err, 'Failed to delete user account'));
       setDeleteId(null);
     },
   });
@@ -192,13 +192,14 @@ export default function UsersPage() {
       key: 'actions',
       header: 'Operations',
       render: (u: User) => {
-        const isSuper = (u.role || u.roleName || '').toLowerCase().includes('super');
-        const isSelf = currentUser && (u.email === currentUser.email || u._id === currentUser.userId);
+        const isSuper =
+          (u.role || u.roleName || '').toLowerCase().includes('super') ||
+          u.email?.toLowerCase() === 'superadmin@hackpro.dev';
 
-        if (isSuper || isSelf) {
+        if (isSuper) {
           return (
             <span className="text-[11px] font-semibold text-slate-400 italic">
-              Protected Account
+              Super Admin (Protected)
             </span>
           );
         }
@@ -215,9 +216,9 @@ export default function UsersPage() {
             </button>
             <button
               onClick={() => setDeleteId(u._id || u.id!)}
-              className="text-xs font-semibold text-rose-600 hover:underline"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1"
             >
-              Revoke Access
+              Delete
             </button>
           </div>
         );
@@ -362,9 +363,9 @@ export default function UsersPage() {
         onClose={() => setDeleteId(null)}
         onConfirm={() => deleteId && deleteMutation.mutate(deleteId)}
         loading={deleteMutation.isPending}
-        title="Revoke Staff Account"
-        message="Are you sure you want to remove this staff member? They will instantly lose administrative access."
-        confirmLabel="Revoke Access"
+        title="Delete Staff Account"
+        message="Are you sure you want to permanently delete this user account? This action cannot be undone."
+        confirmLabel="Delete User"
         danger
       />
     </div>

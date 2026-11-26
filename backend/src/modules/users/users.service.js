@@ -94,11 +94,15 @@ export class UsersService {
       user = all.find((u) => u.id === id || u._id === id || String(u.id) === String(id) || String(u._id) === String(id));
     }
     if (!user) throw ApiError.notFound('Staff user not found');
-    if (user.role === SYSTEM_ROLES.SUPER_ADMIN || user.email === env.SUPER_ADMIN_EMAIL) {
+    const isSuper =
+      user.role === SYSTEM_ROLES.SUPER_ADMIN ||
+      String(user.roleName || '').toLowerCase().includes('super') ||
+      user.email === env.SUPER_ADMIN_EMAIL;
+    if (isSuper) {
       throw ApiError.badRequest('Cannot delete Super Admin account');
     }
     await userRepository.delete(user.id || user._id);
-    return { success: true, message: 'Staff member revoked successfully' };
+    return { success: true, message: 'User deleted successfully' };
   }
 }
 
