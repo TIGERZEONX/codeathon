@@ -4,10 +4,14 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { contestApi, proctorApi, authApi } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
+import { isClientRunnable, runCodeInBrowser } from '@/lib/clientRunner';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
+import { CodeEditor } from '@/components/ui/CodeEditor';
+import { AttemptSkeleton } from '@/components/ui/Skeleton';
 import {
   Clock,
   AlertTriangle,
@@ -112,6 +116,8 @@ interface AttemptState {
     proctorConfig?: ProctorConfig;
     codeRunCooldownSeconds?: number;
     maxCodeSubmissions?: number;
+    isTurnedOff?: boolean;
+    activationMode?: string;
   };
   startedAt?: string;
   submittedAt?: string;
@@ -174,21 +180,17 @@ interface CodeResult {
 }
 
 const SUPPORTED_LANGUAGES = [
-  { id: 71, name: 'Python 3', key: 'python' },
-  { id: 62, name: 'Java (OpenJDK 17)', key: 'java' },
-  { id: 51, name: 'C# (Mono)', key: 'csharp' },
+  { id: 71, name: 'Python 3 (v3.12)', key: 'python' },
+  { id: 62, name: 'Java (JDK 21 LTS)', key: 'java' },
+  { id: 51, name: 'C# (.NET / Roslyn)', key: 'csharp' },
   { id: 63, name: 'JavaScript (Node.js)', key: 'javascript' },
-  { id: 54, name: 'C++ (GCC)', key: 'cpp' },
-  { id: 50, name: 'C (GCC)', key: 'c' },
 ];
 
 const DEFAULT_STARTER_CODE: Record<string, string> = {
-  python: `# Write your Python solution here\nimport sys\n\ndef main():\n    # lines = sys.stdin.read().splitlines()\n    pass\n\nif __name__ == '__main__':\n    main()\n`,
-  java: `import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your Java solution here\n    }\n}\n`,
+  python: `# Write your Python solution here\nimport sys\n\ndef main():\n    # Read all input from standard input (handles multi-line and single-line tokens)\n    # tokens = sys.stdin.read().split()\n    # Or line by line: input_line = input()\n    pass\n\nif __name__ == '__main__':\n    main()\n`,
+  java: `import java.util.*;\nimport java.io.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        Scanner sc = new Scanner(System.in);\n        // Write your Java solution here\n    }\n}\n`,
   csharp: `using System;\n\nclass Program {\n    static void Main(string[] args) {\n        // Write your C# solution here\n        // string line = Console.ReadLine();\n    }\n}\n`,
-  javascript: `const fs = require('fs');\nconst input = fs.readFileSync(0, 'utf-8').trim();\n\n// Write your solution here\n`,
-  cpp: `#include <iostream>\nusing namespace std;\n\nint main() {\n    // Write your C++ solution here\n    return 0;\n}\n`,
-  c: `#include <stdio.h>\n\nint main() {\n    // Write your C solution here\n    return 0;\n}\n`,
+  javascript: `const fs = require('fs');\n\nfunction solve() {\n    const input = fs.readFileSync(0, 'utf-8').trim();\n    // Write your solution here\n}\n\nsolve();\n`,
 };
 
 export default function AttemptPage() {
@@ -244,7 +246,6 @@ export default function AttemptPage() {
   const [isEditorMaximized, setIsEditorMaximized] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
-  const lineNumbersRef = useRef<HTMLDivElement>(null);
 
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -303,6 +304,31 @@ export default function AttemptPage() {
       finishMutation.mutate();
     }
   }, [finishMutation]);
+
+  // Real-time listener: if admin turns OFF contest, auto-submit and lock immediately
+  useEffect(() => {
+    if (!contestId) return;
+    const socket = getSocket();
+    const handleStatusChange = (data: any) => {
+      if (data?.contestId === contestId && data?.isTurnedOff) {
+        handleExpire();
+      }
+    };
+    socket.on('contest:status-changed', handleStatusChange);
+    return () => {
+      socket.off('contest:status-changed', handleStatusChange);
+    };
+  }, [contestId, handleExpire]);
+
+  // Check on mount if contest was turned off by admin
+  useEffect(() => {
+    if (attempt) {
+      const isOff = Boolean((attempt as any)?.isTurnedOff || attempt?.contest?.isTurnedOff);
+      if (isOff && attempt.status === 'in_progress') {
+        handleExpire();
+      }
+    }
+  }, [attempt, handleExpire]);
 
   useEffect(() => {
     if (remaining <= 0) return;
@@ -695,7 +721,7 @@ export default function AttemptPage() {
   const submissionsRemaining = Math.max(0, maxSubmissions - currentSubmissionsUsed);
   const isSubmissionLimitReached = currentSubmissionsUsed >= maxSubmissions;
 
-  // Code Runner
+  // Code Runner (Option A Hybrid: Browser WebAssembly for Python/JS, In-house Backend for Java/C#)
   const handleRunCode = async () => {
     if (!qId || !currentAnswer?.code) return;
     if (cooldownRemaining > 0) return;
@@ -704,6 +730,100 @@ export default function AttemptPage() {
     setSubmitCodeResult(null);
     setActiveConsoleTab('result');
     setSelectedCaseIdx(0);
+
+    const lang = (currentAnswer.language || 'python').toLowerCase();
+
+    // OPTION A (HYBRID): Execute Python and JavaScript 100% inside candidate's browser (0 server load)
+    if (isClientRunnable(lang)) {
+      try {
+        if (showCustomInput) {
+          const clientRes = await runCodeInBrowser({
+            code: currentAnswer.code,
+            language: lang,
+            input: customInput,
+          });
+
+          setRunResult({
+            isCustomInput: true,
+            input: customInput,
+            stdout: clientRes.stdout,
+            stderr: clientRes.stderr,
+            passed: clientRes.verdict === 'PASSED',
+            verdict: clientRes.verdict,
+            timeMs: clientRes.timeMs,
+          });
+        } else {
+          const sampleCases = activeQuestion?.codingConfig?.sampleTestCases || [];
+          if (sampleCases.length === 0) {
+            const clientRes = await runCodeInBrowser({
+              code: currentAnswer.code,
+              language: lang,
+              input: '',
+            });
+            setRunResult({
+              isCustomInput: true,
+              input: '',
+              stdout: clientRes.stdout,
+              stderr: clientRes.stderr,
+              passed: clientRes.verdict === 'PASSED',
+              verdict: clientRes.verdict,
+              timeMs: clientRes.timeMs,
+            });
+          } else {
+            const evaluatedCases: RunCaseResult[] = [];
+            let passedCount = 0;
+            let firstErrorVerdict: string | null = null;
+
+            for (let i = 0; i < sampleCases.length; i++) {
+              const tc = sampleCases[i];
+              const clientRes = await runCodeInBrowser({
+                code: currentAnswer.code,
+                language: lang,
+                input: tc.input || '',
+              });
+
+              const isMatch = (clientRes.stdout || '').trim() === (tc.expectedOutput || '').trim();
+              const casePassed = clientRes.verdict === 'PASSED' && isMatch;
+              if (casePassed) passedCount++;
+              if (clientRes.verdict !== 'PASSED' && !firstErrorVerdict) {
+                firstErrorVerdict = clientRes.verdict;
+              }
+
+              evaluatedCases.push({
+                caseNumber: i,
+                input: tc.input || '',
+                expectedOutput: tc.expectedOutput || '',
+                actualOutput: clientRes.stdout,
+                stderr: clientRes.stderr,
+                verdict: clientRes.verdict !== 'PASSED' ? clientRes.verdict : isMatch ? 'PASSED' : 'FAILED',
+                passed: casePassed,
+                timeMs: clientRes.timeMs,
+              });
+            }
+
+            setRunResult({
+              overallVerdict: firstErrorVerdict || (passedCount === sampleCases.length ? 'PASSED' : 'FAILED'),
+              passedCases: passedCount,
+              totalCases: sampleCases.length,
+              cases: evaluatedCases,
+            });
+          }
+        }
+        setActiveConsoleTab('result');
+        setCooldownRemaining(5); // In-browser execution has minimal 5s local cooldown
+      } catch (err: any) {
+        setRunResult({
+          error: err.message || 'Client Execution Error',
+          overallVerdict: 'COMPILE_ERROR',
+        });
+        setActiveConsoleTab('result');
+      } finally {
+        setRunningCode(false);
+      }
+      return;
+    }
+
+    // For compiled languages (Java, C#) or server execution fallback
     try {
       const res = await contestApi.runCode(contestId, {
         questionId: qId,
@@ -778,14 +898,7 @@ export default function AttemptPage() {
   }, [sections]);
 
   if (isLoading || !stateData) {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-slate-50 gap-3 font-sans">
-        <Spinner size="lg" />
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
-          Loading Examination Portal...
-        </p>
-      </div>
-    );
+    return <AttemptSkeleton />;
   }
 
   return (
@@ -1338,66 +1451,25 @@ export default function AttemptPage() {
                 </div>
               </div>
 
-              {/* Code Editor with Synchronized Line Numbers */}
-              <div className="flex-1 flex overflow-hidden bg-[#0D1117] relative">
-                {/* Line Numbers Gutter */}
-                <div
-                  ref={lineNumbersRef}
-                  className="w-11 sm:w-12 bg-[#090D16] border-r border-slate-800 text-slate-500 font-mono select-none py-3.5 text-right pr-2.5 overflow-hidden shrink-0 space-y-0"
-                  style={{
-                    fontSize: editorFontSize === 'sm' ? '12px' : editorFontSize === 'base' ? '14px' : '16px',
-                    lineHeight: '24px',
-                  }}
-                >
-                  {Array.from(
-                    {
-                      length: Math.max(
-                        ((currentAnswer?.code !== undefined
-                          ? currentAnswer.code
-                          : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
-                            DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
-                            '').split('\n')).length,
-                        15
-                      ),
-                    },
-                    (_, i) => (
-                      <div key={i + 1} className="h-6 leading-6">
-                        {i + 1}
-                      </div>
-                    )
-                  )}
-                </div>
-
-                {/* Editor Textarea */}
-                <textarea
-                  value={
-                    currentAnswer?.code !== undefined
-                      ? currentAnswer.code
-                      : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
-                        DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
-                        '// Write your solution here\n'
-                  }
-                  onChange={(e) => {
-                    const code = e.target.value;
-                    setAnswers((prev) => ({
-                      ...prev,
-                      [qId]: { ...prev[qId], code },
-                    }));
-                  }}
-                  onScroll={(e) => {
-                    if (lineNumbersRef.current) {
-                      lineNumbersRef.current.scrollTop = e.currentTarget.scrollTop;
-                    }
-                  }}
-                  spellCheck={false}
-                  style={{
-                    fontSize: editorFontSize === 'sm' ? '12px' : editorFontSize === 'base' ? '14px' : '16px',
-                    lineHeight: '24px',
-                  }}
-                  className="flex-1 w-full font-mono py-3.5 px-3.5 bg-[#0D1117] text-[#F0F6FC] leading-6 resize-none focus:outline-none selection:bg-[#3760F8]/40 overflow-y-auto whitespace-pre tab-4"
-                  placeholder="# Write your program code here..."
-                />
-              </div>
+              {/* Code Editor with Syntax Highlighting, Intelligent Indentation, and Line Numbers */}
+              <CodeEditor
+                value={
+                  currentAnswer?.code !== undefined
+                    ? currentAnswer.code
+                    : activeQuestion?.codingConfig?.starterCode?.[currentAnswer?.language || 'python'] ||
+                      DEFAULT_STARTER_CODE[currentAnswer?.language || 'python'] ||
+                      '// Write your solution here\n'
+                }
+                onChange={(code) => {
+                  setAnswers((prev) => ({
+                    ...prev,
+                    [qId]: { ...prev[qId], code },
+                  }));
+                }}
+                language={currentAnswer?.language || 'python'}
+                fontSize={editorFontSize}
+                placeholder="# Write your program code here..."
+              />
 
               {/* Action Controls Bar */}
               <div className="px-4 py-2.5 bg-[#161B22] border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
@@ -1483,8 +1555,8 @@ export default function AttemptPage() {
                 isConsoleCollapsed
                   ? 'h-10'
                   : isConsoleExpanded
-                  ? 'h-80 sm:h-96'
-                  : 'h-60 sm:h-64'
+                  ? 'h-[440px] sm:h-[480px]'
+                  : 'h-72 sm:h-80'
               }`}>
                 {/* Console Navigation Tabs */}
                 <div className="bg-[#161B22] px-4 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
@@ -1641,7 +1713,7 @@ export default function AttemptPage() {
                         <div className="py-14 flex flex-col items-center justify-center gap-3 text-slate-400">
                           <Spinner size="md" />
                           <span className="text-xs font-semibold font-sans tracking-wide">
-                            {runningCode ? 'Compiling and executing code on Judge0 Cloud...' : 'Grading all test cases against test harness...'}
+                            {runningCode ? 'Compiling and executing code with HACKPRO Compiler Engine...' : 'Grading all test cases against test harness...'}
                           </span>
                         </div>
                       )}
@@ -1790,7 +1862,13 @@ export default function AttemptPage() {
                                   )}
                                   <div className="flex items-center gap-2">
                                     <span className="font-bold text-xs uppercase tracking-wider">
-                                      {submitCodeResult.verdict === 'PASSED' ? 'Accepted (Full Score)' : submitCodeResult.verdict}
+                                      {submitCodeResult.verdict === 'PASSED'
+                                        ? 'Accepted (Full Score)'
+                                        : submitCodeResult.verdict === 'RUNTIME_ERROR'
+                                        ? 'Runtime Error (NZEC)'
+                                        : submitCodeResult.verdict === 'COMPILE_ERROR'
+                                        ? 'Compilation Error'
+                                        : 'Wrong Answer / Failed'}
                                     </span>
                                     <span className="text-[11px] text-slate-300">
                                       • {submitCodeResult.passedCases ?? 0} of {submitCodeResult.totalCases ?? 0} test cases passed
@@ -1836,26 +1914,34 @@ export default function AttemptPage() {
                                           {submitCodeResult.cases[selectedCaseIdx].isHidden ? 'Hidden Test Case' : 'Sample Test Case'}
                                         </span>
                                         <span className={`font-bold ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                          {submitCodeResult.cases[selectedCaseIdx].passed ? 'Passed ✓' : 'Failed ✗'}
+                                          {submitCodeResult.cases[selectedCaseIdx].passed ? 'Passed ✓' : submitCodeResult.cases[selectedCaseIdx].verdict === 'RUNTIME_ERROR' ? 'Runtime Error ✗' : 'Failed ✗'}
                                         </span>
                                       </div>
 
                                       {!submitCodeResult.cases[selectedCaseIdx].isHidden ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
-                                          <div>
-                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
-                                            <pre className="p-2 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].input || '(Empty)'}</pre>
+                                        <div className="space-y-2 pt-1">
+                                          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                            <div>
+                                              <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Compiler Input:</span>
+                                              <pre className="p-2 bg-black/80 text-slate-200 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].input || '(Empty)'}</pre>
+                                            </div>
+                                            <div>
+                                              <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
+                                              <pre className={`p-2 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80 ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                {submitCodeResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
+                                              </pre>
+                                            </div>
+                                            <div>
+                                              <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
+                                              <pre className="p-2 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap font-bold font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].expectedOutput || '(Empty)'}</pre>
+                                            </div>
                                           </div>
-                                          <div>
-                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Your Output:</span>
-                                            <pre className={`p-2 bg-black/80 rounded-lg text-[11px] whitespace-pre-wrap font-mono h-24 overflow-y-auto border border-slate-800/80 ${submitCodeResult.cases[selectedCaseIdx].passed ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                              {submitCodeResult.cases[selectedCaseIdx].actualOutput || '(No output produced)'}
-                                            </pre>
-                                          </div>
-                                          <div>
-                                            <span className="font-sans font-bold text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Expected Output:</span>
-                                            <pre className="p-2 bg-black/80 text-emerald-400 rounded-lg text-[11px] whitespace-pre-wrap font-bold font-mono h-24 overflow-y-auto border border-slate-800/80">{submitCodeResult.cases[selectedCaseIdx].expectedOutput || '(Empty)'}</pre>
-                                          </div>
+                                          {submitCodeResult.cases[selectedCaseIdx].stderr && (
+                                            <div>
+                                              <span className="font-sans font-bold text-[10px] text-rose-400 uppercase tracking-wider block mb-1">Standard Error (Runtime Exception Traceback):</span>
+                                              <pre className="p-2.5 bg-rose-950/40 text-rose-300 rounded-lg text-[11px] whitespace-pre-wrap border border-rose-900/60 font-mono max-h-32 overflow-y-auto">{submitCodeResult.cases[selectedCaseIdx].stderr}</pre>
+                                            </div>
+                                          )}
                                         </div>
                                       ) : (
                                         <div className="p-3 bg-slate-900/80 rounded-lg text-slate-400 font-sans text-xs">

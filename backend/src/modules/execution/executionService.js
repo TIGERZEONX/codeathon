@@ -1,226 +1,63 @@
-import { env } from '../../config/env.js';
 import { logger } from '../../utils/logger.js';
 import { SUBMISSION_VERDICT } from '@codeathon/shared';
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { executionQueue } from './executionQueue.js';
+import { pythonRunner } from './runners/pythonRunner.js';
+import { javaRunner } from './runners/javaRunner.js';
+import { csharpRunner } from './runners/csharpRunner.js';
+import { nodeRunner } from './runners/nodeRunner.js';
 
 export class ExecutionService {
-  async executeCode({ code, language, input = '', timeLimitMs = 2000, memoryLimitMb = 256 }) {
-    // If Judge0 is reachable, try Judge0
-    if (env.JUDGE0_URL) {
-      try {
-        const result = await this.executeViaJudge0({ code, language, input, timeLimitMs, memoryLimitMb });
-        if (result) return result;
-      } catch (err) {
-        logger.debug('Judge0 unavailable, using built-in sandbox execution runner');
-      }
-    }
-
-    // Built-in runner fallback
-    return this.executeLocally({ code, language, input, timeLimitMs });
-  }
-
-  async executeViaJudge0({ code, language, input, timeLimitMs, memoryLimitMb }) {
-    const langMap = {
-      python: 71,
-      javascript: 63,
-      cpp: 54,
-      c: 50,
-      java: 62,
-      csharp: 51,
-      cs: 51,
-      'c#': 51,
-    };
-    const languageId = langMap[language.toLowerCase()];
-    if (!languageId) return null;
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeLimitMs + 5000);
-
-    try {
-      const baseUrl = (env.JUDGE0_URL || '').replace(/\/+$/, '');
-      const isRapidApi = baseUrl.includes('rapidapi.com');
-
-      const headers = {
-        'Content-Type': 'application/json',
-      };
-
-      if (isRapidApi) {
-        try {
-          const u = new URL(baseUrl);
-          headers['x-rapidapi-host'] = u.hostname;
-          headers['x-rapidapi-key'] = env.JUDGE0_AUTH_TOKEN;
-        } catch (e) {}
-      } else if (env.JUDGE0_AUTH_TOKEN) {
-        headers['X-Auth-Token'] = env.JUDGE0_AUTH_TOKEN;
-      }
-
-      const queryParams = new URLSearchParams({
-        base64_encoded: 'false',
-        wait: 'true',
-      });
-
-      const response = await fetch(`${baseUrl}/submissions?${queryParams.toString()}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          source_code: code,
-          language_id: languageId,
-          stdin: input,
-          cpu_time_limit: Math.max(1, timeLimitMs / 1000),
-          memory_limit: memoryLimitMb * 1024,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-      if (!response.ok) {
-        logger.warn(`Judge0 returned HTTP ${response.status}`);
-        return null;
-      }
-
-      const data = await response.json();
-      return this.normalizeJudge0Result(data);
-    } catch (err) {
-      clearTimeout(timeoutId);
-      logger.warn(`Judge0 execution error: ${err.message}`);
-      return null;
-    }
-  }
-
-  normalizeJudge0Result(data) {
-    let verdict = SUBMISSION_VERDICT.PASSED;
-    const statusId = data.status?.id;
-
-    if (statusId === 3) verdict = SUBMISSION_VERDICT.PASSED;
-    else if (statusId === 4) verdict = SUBMISSION_VERDICT.FAILED; // Wrong Answer
-    else if (statusId === 5) verdict = SUBMISSION_VERDICT.TLE;
-    else if (statusId === 6) verdict = SUBMISSION_VERDICT.COMPILE_ERROR;
-    else if (statusId >= 7 && statusId <= 12) verdict = SUBMISSION_VERDICT.RUNTIME_ERROR;
-    else verdict = SUBMISSION_VERDICT.FAILED;
-
-    return {
-      stdout: data.stdout ? data.stdout.trim() : '',
-      stderr: data.stderr || data.compile_output || '',
-      verdict,
-      timeMs: Math.round((data.time || 0) * 1000),
-      memoryKb: data.memory || 0,
+  constructor() {
+    this.runners = {
+      python: pythonRunner,
+      py: pythonRunner,
+      python3: pythonRunner,
+      java: javaRunner,
+      jdk: javaRunner,
+      csharp: csharpRunner,
+      cs: csharpRunner,
+      'c#': csharpRunner,
+      dotnet: csharpRunner,
+      javascript: nodeRunner,
+      js: nodeRunner,
+      node: nodeRunner,
+      nodejs: nodeRunner,
     };
   }
 
-  async executeLocally({ code, language, input, timeLimitMs }) {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codeathon-exec-'));
-    const startTime = Date.now();
+  async executeCode({ code, language = 'python', input = '', timeLimitMs = 2000, memoryLimitMb = 256 }) {
+    const langKey = (language || 'python').toLowerCase().trim();
 
-    try {
-      let command = '';
-      let args = [];
-      let filePath = '';
-
-      if (language === 'javascript' || language === 'node') {
-        filePath = path.join(tempDir, 'solution.js');
-        fs.writeFileSync(filePath, code);
-        command = 'node';
-        args = [filePath];
-      } else if (language === 'python') {
-        filePath = path.join(tempDir, 'solution.py');
-        fs.writeFileSync(filePath, code);
-        command = 'python';
-        args = [filePath];
-      } else {
-        // Fallback simulated execution for compiled languages if compilers not present
-        return {
-          stdout: 'Execution output verified for ' + language,
-          stderr: '',
-          verdict: SUBMISSION_VERDICT.PASSED,
-          timeMs: 45,
-          memoryKb: 12000,
-        };
-      }
-
-      return await new Promise((resolve) => {
-        let stdout = '';
-        let stderr = '';
-        let killed = false;
-
-        const child = spawn(command, args, { cwd: tempDir });
-
-        const timer = setTimeout(() => {
-          killed = true;
-          child.kill('SIGKILL');
-          resolve({
-            stdout: '',
-            stderr: 'Time Limit Exceeded',
-            verdict: SUBMISSION_VERDICT.TLE,
-            timeMs: timeLimitMs,
-            memoryKb: 0,
-          });
-        }, timeLimitMs);
-
-        if (input) {
-          child.stdin.write(input);
-        }
-        child.stdin.end();
-
-        child.stdout.on('data', (data) => {
-          stdout += data.toString();
-        });
-
-        child.stderr.on('data', (data) => {
-          stderr += data.toString();
-        });
-
-        child.on('error', (err) => {
-          clearTimeout(timer);
-          resolve({
-            stdout: '',
-            stderr: err.message,
-            verdict: SUBMISSION_VERDICT.RUNTIME_ERROR,
-            timeMs: Date.now() - startTime,
-            memoryKb: 0,
-          });
-        });
-
-        child.on('close', (code) => {
-          clearTimeout(timer);
-          if (killed) return;
-
-          const timeMs = Date.now() - startTime;
-          const trimmedStdout = stdout.trim();
-
-          if (code !== 0) {
-            resolve({
-              stdout: trimmedStdout,
-              stderr: stderr.trim(),
-              verdict: stderr.includes('SyntaxError') ? SUBMISSION_VERDICT.COMPILE_ERROR : SUBMISSION_VERDICT.RUNTIME_ERROR,
-              timeMs,
-              memoryKb: 15000,
-            });
-          } else {
-            resolve({
-              stdout: trimmedStdout,
-              stderr: stderr.trim(),
-              verdict: SUBMISSION_VERDICT.PASSED,
-              timeMs,
-              memoryKb: 14000,
-            });
-          }
-        });
-      });
-    } catch (err) {
+    const runner = this.runners[langKey];
+    if (!runner) {
       return {
         stdout: '',
-        stderr: err.message,
+        stderr: `Language "${language}" is not currently configured in the HACKPRO compiler engine. Supported languages: Java, Python, C#, JavaScript.`,
+        verdict: SUBMISSION_VERDICT.COMPILE_ERROR,
+        timeMs: 0,
+        memoryKb: 0,
+      };
+    }
+
+    // Process through concurrency queue to protect CPU and memory during peak student traffic
+    try {
+      return await executionQueue.enqueue(async () => {
+        return await runner.execute({
+          code,
+          input,
+          timeLimitMs,
+          memoryLimitMb,
+        });
+      });
+    } catch (err) {
+      logger.error(`Execution error for ${language}:`, err);
+      return {
+        stdout: '',
+        stderr: `Internal Engine Error: ${err.message}`,
         verdict: SUBMISSION_VERDICT.RUNTIME_ERROR,
         timeMs: 0,
         memoryKb: 0,
       };
-    } finally {
-      try {
-        fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch (e) {}
     }
   }
 

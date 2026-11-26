@@ -17,6 +17,7 @@ import analyticsRoutes from '../modules/analytics/analytics.routes.js';
 import reportsRoutes from '../modules/reports/reports.routes.js';
 import submissionsRoutes from '../modules/submissions/submissions.routes.js';
 import auditRoutes from '../modules/audit/audit.routes.js';
+import invitationsRoutes from '../modules/invitations/invitations.routes.js';
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.use('/roles', rolesRoutes);
 router.use('/participants', participantsRoutes);
 router.use('/teams', teamsRoutes);
 router.use('/assignments', assignmentsRoutes);
+router.use('/contests/:contestId/invitations', invitationsRoutes);
 router.use('/contests', contestsRoutes);
 router.use('/sections', sectionsRoutes);
 router.use('/questions', questionsRoutes);

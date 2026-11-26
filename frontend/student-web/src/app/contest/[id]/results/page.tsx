@@ -3,6 +3,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { contestApi, leaderboardApi } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
+import { ResultsSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles } from 'lucide-react';
@@ -39,11 +40,7 @@ export default function ResultsPage() {
   });
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spinner size="lg" />
-      </div>
-    );
+    return <ResultsSkeleton />;
   }
 
   const rawAttempt: any = (attemptData as any)?.attempt || attemptData;

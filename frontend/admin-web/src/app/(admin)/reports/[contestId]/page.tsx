@@ -20,7 +20,11 @@ import {
   TrendingUp,
   BarChart2,
   AlertTriangle,
+  FileSpreadsheet,
+  FileText,
 } from 'lucide-react';
+import { exportSubmissionsPdf } from '@/lib/exportPdf';
+import { exportSubmissionsExcel } from '@/lib/exportExcel';
 
 export default function ContestAnalyticsReportPage() {
   const { contestId } = useParams<{ contestId: string }>();
@@ -136,21 +140,39 @@ export default function ContestAnalyticsReportPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 print:hidden">
+        <div className="flex items-center gap-2.5 flex-wrap print:hidden">
           <Button
             variant="outline"
             size="sm"
             onClick={handleExportCsv}
             leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
           >
-            Export CSV
+            Direct CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              exportSubmissionsExcel({
+                contestTitle: contest?.title || 'Contest Report',
+                submissions: topPerformers,
+              })
+            }
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+          >
+            Direct Excel
           </Button>
           <Button
             size="sm"
-            onClick={handlePrintPdf}
-            leftIcon={<Printer className="w-3.5 h-3.5 text-white" />}
+            onClick={() =>
+              exportSubmissionsPdf({
+                contestTitle: contest?.title || 'Contest Report',
+                submissions: topPerformers,
+              })
+            }
+            leftIcon={<FileText className="w-3.5 h-3.5 text-white" />}
           >
-            Print / PDF Report
+            Direct PDF
           </Button>
         </div>
       </div>

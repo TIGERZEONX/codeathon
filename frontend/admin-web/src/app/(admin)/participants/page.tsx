@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Pagination } from '@/components/ui/Pagination';
 import * as XLSX from 'xlsx';
+import Link from 'next/link';
 import {
   Plus,
   UploadCloud,
@@ -23,6 +24,7 @@ import {
   FileSpreadsheet,
   FileText,
   CheckCircle,
+  Mail,
 } from 'lucide-react';
 
 interface Participant {
@@ -263,6 +265,11 @@ export default function ParticipantsPage() {
           <p className="text-xs text-slate-500 mt-1">Manage student identities, single registration, and bulk CSV ingestion</p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
+          <Link href="/invitations">
+            <Button variant="outline" size="sm" leftIcon={<Mail className="w-3.5 h-3.5 text-[#3760F8]" />}>
+              Send Invitations
+            </Button>
+          </Link>
           <Button variant="outline" size="sm" onClick={handleExport} leftIcon={<Download className="w-3.5 h-3.5" />}>
             Export CSV
           </Button>

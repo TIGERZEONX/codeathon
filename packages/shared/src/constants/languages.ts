@@ -1,7 +1,6 @@
 export interface SupportedLanguage {
-  id: string; // e.g. 'python', 'javascript', 'cpp', 'c', 'java'
+  id: string; // e.g. 'python', 'javascript', 'java', 'csharp'
   name: string;
-  judge0Id: number; // Standard Judge0 CE language id
   extension: string;
   defaultStarterCode: string;
 }
@@ -9,8 +8,7 @@ export interface SupportedLanguage {
 export const SUPPORTED_LANGUAGES: Record<string, SupportedLanguage> = {
   python: {
     id: 'python',
-    name: 'Python (3.10)',
-    judge0Id: 71,
+    name: 'Python (v3.12)',
     extension: 'py',
     defaultStarterCode: `import sys
 
@@ -20,7 +18,7 @@ def solve():
     if not input_data:
         return
     # Write your solution here
-    print("Hello, Codeathon!")
+    print("Hello, HACKPRO!")
 
 if __name__ == '__main__':
     solve()
@@ -28,8 +26,7 @@ if __name__ == '__main__':
   },
   javascript: {
     id: 'javascript',
-    name: 'JavaScript (Node.js 20)',
-    judge0Id: 63,
+    name: 'JavaScript (Node.js)',
     extension: 'js',
     defaultStarterCode: `const fs = require('fs');
 
@@ -37,59 +34,37 @@ function solve() {
   const input = fs.readFileSync(0, 'utf-8').trim();
   if (!input) return;
   // Write your solution here
-  console.log("Hello, Codeathon!");
+  console.log("Hello, HACKPRO!");
 }
 
 solve();
 `,
   },
-  cpp: {
-    id: 'cpp',
-    name: 'C++ (GCC 9.2)',
-    judge0Id: 54,
-    extension: 'cpp',
-    defaultStarterCode: `#include <iostream>
-#include <vector>
-#include <string>
-
-using namespace std;
-
-int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-    
-    // Write your solution here
-    cout << "Hello, Codeathon!\\n";
-    return 0;
-}
-`,
-  },
-  c: {
-    id: 'c',
-    name: 'C (GCC 9.2)',
-    judge0Id: 50,
-    extension: 'c',
-    defaultStarterCode: `#include <stdio.h>
-
-int main() {
-    // Write your solution here
-    printf("Hello, Codeathon!\\n");
-    return 0;
-}
-`,
-  },
   java: {
     id: 'java',
-    name: 'Java (OpenJDK 13/17)',
-    judge0Id: 62,
+    name: 'Java (JDK 21 LTS)',
     extension: 'java',
     defaultStarterCode: `import java.util.Scanner;
 
-public class Main {
+public class Solution {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
         // Write your solution here
-        System.out.println("Hello, Codeathon!");
+        System.out.println("Hello, HACKPRO!");
+    }
+}
+`,
+  },
+  csharp: {
+    id: 'csharp',
+    name: 'C# (.NET / Roslyn)',
+    extension: 'cs',
+    defaultStarterCode: `using System;
+
+class Program {
+    static void Main(string[] args) {
+        // Write your solution here
+        Console.WriteLine("Hello, HACKPRO!");
     }
 }
 `,

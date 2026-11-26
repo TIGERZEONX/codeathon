@@ -1,5 +1,4 @@
 import React from 'react';
-import { Spinner } from './Spinner';
 
 interface Column<T> {
   key: string;
@@ -25,8 +24,41 @@ export function Table<T>({
 }: TableProps<T>) {
   if (loading) {
     return (
-      <div className="flex justify-center py-20">
-        <Spinner size="lg" />
+      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200/80">
+            <thead className="bg-slate-50/80">
+              <tr>
+                {columns.map((c) => (
+                  <th
+                    key={c.key}
+                    className={`px-5 py-3.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider ${
+                      c.className || ''
+                    }`}
+                  >
+                    {c.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {Array.from({ length: 7 }, (_, rIdx) => (
+                <tr key={rIdx} className="animate-pulse">
+                  {columns.map((c, cIdx) => (
+                    <td key={c.key} className="px-5 py-4">
+                      <div
+                        className="h-4 bg-slate-200/80 rounded-md"
+                        style={{
+                          width: cIdx === 0 ? '70%' : cIdx === columns.length - 1 ? '40%' : '55%',
+                        }}
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }

@@ -19,10 +19,11 @@ const envSchema = z.object({
   REFRESH_TTL: z.string().default('7d'),
   COOKIE_DOMAIN: z.string().default('localhost'),
   CORS_ORIGINS: z.string().default('http://localhost:3000,http://localhost:3001'),
-  JUDGE0_URL: z.string().default('http://localhost:2358'),
-  JUDGE0_AUTH_TOKEN: z.string().optional().default(''),
   SUPER_ADMIN_EMAIL: z.string().default('superadmin@hirepro.dev'),
   SUPER_ADMIN_PASSWORD: z.string().default('SuperAdmin@2026!'),
+  BREVO_API_KEY: z.string().optional().default(''),
+  BREVO_SENDER_EMAIL: z.string().default('hackathonhex@gmail.com'),
+  STUDENT_PORTAL_URL: z.string().default('http://localhost:3000'),
 });
 
 const parsed = envSchema.safeParse(process.env);

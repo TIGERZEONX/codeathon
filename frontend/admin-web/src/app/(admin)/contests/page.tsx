@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Power,
   PowerOff,
+  Calendar,
 } from 'lucide-react';
 
 interface Contest {
@@ -58,6 +59,7 @@ interface Contest {
   showTotalPointsEarned?: boolean;
   codeRunCooldownSeconds?: number;
   maxCodeSubmissions?: number;
+  activationMode?: 'scheduled' | 'manual';
   isTurnedOff?: boolean;
 }
 
@@ -105,6 +107,7 @@ const getDefaultForm = () => {
     showTotalPointsEarned: true,
     codeRunCooldownSeconds: 30,
     maxCodeSubmissions: 3,
+    activationMode: 'scheduled',
   };
 };
 
@@ -170,20 +173,76 @@ function ContestFormInputs({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Input
-          label="Start Window *"
-          type="datetime-local"
-          value={form.startTime}
-          onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
-        />
-        <Input
-          label="End Window *"
-          type="datetime-local"
-          value={form.endTime}
-          onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
-        />
+      {/* Activation Mode Selector */}
+      <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+        <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+          Activation Mode *
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, activationMode: 'scheduled' }))}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              (form.activationMode || 'scheduled') === 'scheduled'
+                ? 'border-[#3760F8] bg-blue-50/60 text-[#3760F8] ring-2 ring-[#3760F8]/20 font-bold'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[#3760F8]" />
+              <span className="text-xs font-bold">Scheduled Timer</span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+              Auto-opens at start time and closes at end time.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setForm((f) => ({ ...f, activationMode: 'manual' }))}
+            className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              form.activationMode === 'manual'
+                ? 'border-emerald-600 bg-emerald-50/60 text-emerald-800 ring-2 ring-emerald-600/20 font-bold'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Power className="w-4 h-4 text-emerald-600" />
+              <span className="text-xs font-bold">Manual Control</span>
+            </div>
+            <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+              You turn the assessment ON/OFF live using the switch.
+            </p>
+          </button>
+        </div>
       </div>
+
+      {form.activationMode === 'manual' ? (
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
+          <p className="font-bold flex items-center gap-1.5">
+            <Power className="w-3.5 h-3.5 text-emerald-600" />
+            Manual Control Active
+          </p>
+          <p className="text-[11px] text-emerald-700 leading-relaxed">
+            Scheduled timer is disabled. Students will take the test for the set duration whenever you turn the assessment ON.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input
+            label="Start Window *"
+            type="datetime-local"
+            value={form.startTime}
+            onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+          />
+          <Input
+            label="End Window *"
+            type="datetime-local"
+            value={form.endTime}
+            onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Input
@@ -414,10 +473,11 @@ export default function ContestsPage() {
         throw new Error('Duration must be at least 5 minutes.');
       }
 
-      const startIso = safeToIso(form.startTime, new Date());
-      const endIso = safeToIso(form.endTime, new Date(Date.now() + 86400000));
+      const isManual = form.activationMode === 'manual';
+      const startIso = isManual ? new Date().toISOString() : safeToIso(form.startTime, new Date());
+      const endIso = isManual ? new Date(Date.now() + 365 * 86400000).toISOString() : safeToIso(form.endTime, new Date(Date.now() + 86400000));
 
-      if (new Date(endIso).getTime() <= new Date(startIso).getTime()) {
+      if (!isManual && new Date(endIso).getTime() <= new Date(startIso).getTime()) {
         throw new Error('End window must be after the start window.');
       }
 
@@ -426,6 +486,7 @@ export default function ContestsPage() {
         batchCode: form.batchCode?.trim() || undefined,
         description: form.description.trim() || undefined,
         instructions: form.instructions.trim() || undefined,
+        activationMode: form.activationMode || 'scheduled',
         startTime: startIso,
         endTime: endIso,
         durationMinutes: Number(form.durationMinutes) || 60,
@@ -474,14 +535,16 @@ export default function ContestsPage() {
       if (form.title.trim() && form.title.trim().length < 3) {
         throw new Error('Contest title must be at least 3 characters.');
       }
-      const startIso = form.startTime ? safeToIso(form.startTime, new Date()) : undefined;
-      const endIso = form.endTime ? safeToIso(form.endTime, new Date(Date.now() + 86400000)) : undefined;
+      const isManual = form.activationMode === 'manual';
+      const startIso = isManual ? new Date().toISOString() : (form.startTime ? safeToIso(form.startTime, new Date()) : undefined);
+      const endIso = isManual ? new Date(Date.now() + 365 * 86400000).toISOString() : (form.endTime ? safeToIso(form.endTime, new Date(Date.now() + 86400000)) : undefined);
 
       return contestsApi.update(id, {
         title: form.title.trim(),
         batchCode: form.batchCode?.trim() || undefined,
         description: form.description.trim() || undefined,
         instructions: form.instructions.trim() || undefined,
+        activationMode: form.activationMode || 'scheduled',
         startTime: startIso,
         endTime: endIso,
         durationMinutes: Number(form.durationMinutes) || 60,
@@ -562,6 +625,7 @@ export default function ContestsPage() {
     setEditContest(c);
     setForm({
       ...getDefaultForm(),
+      activationMode: c.activationMode || 'scheduled',
       title: c.title,
       batchCode: c.batchCode || '',
       startTime: c.startTime?.slice(0, 16) || '',
@@ -611,16 +675,25 @@ export default function ContestsPage() {
     {
       key: 'status',
       header: 'Status',
-      render: (c: Contest) => (
-        <div className="flex flex-col gap-1 items-start">
-          <Badge color={c.isTurnedOff ? 'red' : (statusColor[c.status] || 'gray')}>
-            {c.isTurnedOff ? 'TURNED OFF' : c.status.toUpperCase()}
-          </Badge>
-          {!c.showTotalPointsEarned && (
-            <span className="text-[10px] text-slate-500 font-medium">Points Hidden</span>
-          )}
-        </div>
-      ),
+      render: (c: Contest) => {
+        const isManual = c.activationMode === 'manual';
+        const computed = (c as any).computedStatus || c.status;
+        return (
+          <div className="flex flex-col gap-1 items-start">
+            <div className="flex items-center gap-1 flex-wrap">
+              <Badge color={isManual ? 'purple' : 'blue'}>
+                {isManual ? 'MANUAL' : 'SCHEDULED'}
+              </Badge>
+              <Badge color={c.isTurnedOff ? 'red' : (statusColor[computed] || 'gray')}>
+                {c.isTurnedOff ? 'TURNED OFF' : computed.toUpperCase()}
+              </Badge>
+            </div>
+            {!c.showTotalPointsEarned && (
+              <span className="text-[10px] text-slate-500 font-medium">Points Hidden</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'duration',
@@ -631,11 +704,20 @@ export default function ContestsPage() {
     },
     {
       key: 'timing',
-      header: 'Scheduled Window',
+      header: 'Timing & Schedule',
       render: (c: Contest) => (
         <div className="text-xs text-slate-600 space-y-0.5">
-          <p>Start: {new Date(c.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
-          <p>End: {new Date(c.endTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+          {c.activationMode === 'manual' ? (
+            <p className="text-emerald-700 font-medium flex items-center gap-1">
+              <Power className="w-3 h-3 text-emerald-600" />
+              <span>Manual Admin Switch</span>
+            </p>
+          ) : (
+            <>
+              <p>Start: {new Date(c.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+              <p>End: {new Date(c.endTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+            </>
+          )}
         </div>
       ),
     },

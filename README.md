@@ -23,7 +23,8 @@ Participants · Teams · Assignments · Attempts · Submissions · Proctoring ·
 Leaderboard · Attendance · Analytics · Reports · Audit Logs
 
 ### Key Design Decisions
-- **In-memory fallbacks**: Platform works without MongoDB, Redis, or Judge0
+- **In-memory fallbacks**: Platform works without MongoDB or Redis
+- **In-House Compiler Engine**: Native execution for Python, Java, C#, and JavaScript with Pyodide Wasm browser execution
 - **Server-authoritative timer**: `endsAt = min(start+duration+extension, contestEnd+grace)`
 - **Hidden test cases**: I/O never sent to client — only pass/fail count
 - **MCQ security**: Correct answers stripped before sending to students
@@ -112,7 +113,6 @@ Postman collection: `backend/postman/codeathon.postman_collection.json`
 | `MONGODB_URI`        | (optional)                   | MongoDB connection string |
 | `REDIS_URL`          | (optional)                   | Redis connection string  |
 | `JWT_SECRET`         | (required)                   | JWT signing secret       |
-| `JUDGE0_URL`         | (optional)                   | Judge0 API base URL      |
 | `NODE_ENV`           | `development`                | Environment              |
 
 ### Student Web (`frontend/student-web/.env.local`)

@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { PillTabs } from '@/components/ui/PillTabs';
-import { Download, UserCheck, Users, CheckCircle2, UserX, Clock, RefreshCw } from 'lucide-react';
+import { Download, UserCheck, Users, CheckCircle2, UserX, Clock, RefreshCw, FileText, FileSpreadsheet } from 'lucide-react';
+import { exportAttendancePdf } from '@/lib/exportPdf';
+import { exportAttendanceExcel } from '@/lib/exportExcel';
 
 interface AttendanceRecord {
   id: string;
@@ -224,7 +226,33 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
             onClick={handleExport}
             leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
           >
-            Export CSV
+            CSV
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              exportAttendanceExcel({
+                contestTitle: 'Contest Attendance',
+                records,
+              })
+            }
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+          >
+            Excel
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() =>
+              exportAttendancePdf({
+                contestTitle: 'Contest Attendance',
+                records,
+              })
+            }
+            leftIcon={<FileText className="w-3.5 h-3.5" />}
+          >
+            Direct PDF
           </Button>
         </div>
       </div>

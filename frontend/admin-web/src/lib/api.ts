@@ -177,6 +177,21 @@ export const rubricsApi = {
   },
 };
 
+export const invitationsApi = {
+  getStatus: async (contestId: string) => {
+    const res = await apiClient.get(`/contests/${contestId}/invitations`);
+    return res.data.data;
+  },
+  send: async (contestId: string, participantIds?: string[]) => {
+    const res = await apiClient.post(`/contests/${contestId}/invitations/send`, { participantIds });
+    return res.data;
+  },
+  resendFailed: async (contestId: string) => {
+    const res = await apiClient.post(`/contests/${contestId}/invitations/resend-failed`);
+    return res.data;
+  },
+};
+
 export const attendanceApi = {
   getByContest: async (contestId: string, params?: any) => {
     const res = await apiClient.get(`/attendance/${contestId}`, { params });

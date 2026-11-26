@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { contestApi, authApi } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { useAuthStore } from '@/store/authStore';
 import {
   Code2,
@@ -22,6 +23,7 @@ import {
   User,
 } from 'lucide-react';
 import { CONTEST_STATUS, ATTEMPT_STATUS } from '@codeathon/shared';
+import { DashboardSkeleton } from '@/components/ui/Skeleton';
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; cls: string; dot: string }> = {
@@ -127,8 +129,20 @@ export default function DashboardPage() {
   const { data: contests = [], isLoading } = useQuery({
     queryKey: ['assigned-contests'],
     queryFn: contestApi.getAssigned,
-    refetchInterval: 60_000,
+    refetchInterval: 15_000,
   });
+
+  // Real-time WebSocket sync: update assessments instantly when admin changes status
+  useEffect(() => {
+    const socket = getSocket();
+    const handleStatusChange = () => {
+      qc.invalidateQueries({ queryKey: ['assigned-contests'] });
+    };
+    socket.on('contest:status-changed', handleStatusChange);
+    return () => {
+      socket.off('contest:status-changed', handleStatusChange);
+    };
+  }, [qc]);
 
   const handleLogout = async () => {
     try {
@@ -139,8 +153,12 @@ export default function DashboardPage() {
   };
 
   const handleEnterContest = (contest: any) => {
+    const isOff = Boolean(contest.isTurnedOff);
     if (contest.attempt?.status === ATTEMPT_STATUS.SUBMITTED) {
       router.push(`/contest/${contest.id}/results`);
+    } else if (isOff) {
+      // Contest is turned off by admin - do not navigate
+      return;
     } else {
       router.push(`/contest/${contest.id}`);
     }
@@ -157,8 +175,9 @@ export default function DashboardPage() {
   const stats = useMemo(() => {
     const total = contests.length;
     const live = contests.filter((c: any) => {
+      const isOff = Boolean(c.isTurnedOff);
       const st = c.computedStatus ?? c.status;
-      return st === CONTEST_STATUS.LIVE;
+      return !isOff && st === CONTEST_STATUS.LIVE;
     }).length;
 
     const submitted = contests.filter(
@@ -182,11 +201,12 @@ export default function DashboardPage() {
 
   const filteredContests = useMemo(() => {
     return contests.filter((contest: any) => {
-      const computed = contest.computedStatus ?? contest.status;
+      const isOff = Boolean(contest.isTurnedOff);
+      const computed = isOff ? 'ended' : (contest.computedStatus ?? contest.status);
       const isSubmitted = contest.attempt?.status === ATTEMPT_STATUS.SUBMITTED;
 
-      if (activeTab === 'live' && computed !== CONTEST_STATUS.LIVE) return false;
-      if (activeTab === 'upcoming' && computed !== CONTEST_STATUS.SCHEDULED) return false;
+      if (activeTab === 'live' && (isOff || computed !== CONTEST_STATUS.LIVE)) return false;
+      if (activeTab === 'upcoming' && (isOff || computed !== CONTEST_STATUS.SCHEDULED)) return false;
       if (activeTab === 'completed' && !isSubmitted) return false;
 
       if (searchQuery.trim()) {
@@ -202,8 +222,9 @@ export default function DashboardPage() {
 
   const liveContest = useMemo(() => {
     return contests.find((c: any) => {
+      const isOff = Boolean(c.isTurnedOff);
       const st = c.computedStatus ?? c.status;
-      return st === CONTEST_STATUS.LIVE && c.attempt?.status !== ATTEMPT_STATUS.SUBMITTED;
+      return !isOff && st === CONTEST_STATUS.LIVE && c.attempt?.status !== ATTEMPT_STATUS.SUBMITTED;
     });
   }, [contests]);
 
@@ -216,6 +237,10 @@ export default function DashboardPage() {
       .join('')
       .toUpperCase();
   }, [currentUser?.name]);
+
+  if (isLoading && contests.length === 0) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-16">
@@ -424,10 +449,11 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3 pt-2">
                   {filteredContests.map((contest: any) => {
-                    const computed = contest.computedStatus ?? contest.status;
+                    const isOff = Boolean(contest.isTurnedOff);
+                    const computed = isOff ? 'ended' : (contest.computedStatus ?? contest.status);
                     const isSubmitted = contest.attempt?.status === ATTEMPT_STATUS.SUBMITTED;
-                    const isInProgress = contest.attempt?.status === ATTEMPT_STATUS.IN_PROGRESS;
-                    const isLive = computed === CONTEST_STATUS.LIVE;
+                    const isLive = !isOff && computed === CONTEST_STATUS.LIVE;
+                    const isInProgress = !isOff && isLive && contest.attempt?.status === ATTEMPT_STATUS.IN_PROGRESS;
 
                     return (
                       <div
@@ -437,8 +463,8 @@ export default function DashboardPage() {
                       >
                         <div className="space-y-1.5 flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <StatusBadge status={computed} />
-                            <AttemptBadge status={contest.attempt?.status} />
+                            <StatusBadge status={isOff ? 'ended' : computed} />
+                            <AttemptBadge status={isOff ? undefined : contest.attempt?.status} />
                             {contest.proctorConfig?.enabled && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                                 <ShieldCheck className="w-3 h-3 text-[#3760F8]" /> Proctoring
@@ -478,17 +504,20 @@ export default function DashboardPage() {
                               e.stopPropagation();
                               handleEnterContest(contest);
                             }}
+                            disabled={isOff || (!isLive && !isSubmitted)}
                             className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ${
                               isSubmitted
                                 ? 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                                 : isLive || isInProgress
                                 ? 'bg-[#3760F8] text-white hover:bg-[#254EDB]'
-                                : 'bg-slate-100 text-slate-500 cursor-not-allowed'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/80'
                             }`}
                           >
                             <span>
                               {isSubmitted
                                 ? (contest.showTotalPointsEarned !== false && contest.resultVisibility !== 'hidden' ? 'View Results' : 'View Summary')
+                                : isOff
+                                ? 'Contest Closed'
                                 : isLive || isInProgress
                                 ? 'Start Test'
                                 : 'Upcoming'}

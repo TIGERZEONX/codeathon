@@ -8,6 +8,13 @@ export const CONTEST_STATUS = {
 
 export type ContestStatus = (typeof CONTEST_STATUS)[keyof typeof CONTEST_STATUS];
 
+export const CONTEST_ACTIVATION_MODE = {
+  SCHEDULED: 'scheduled',
+  MANUAL: 'manual',
+} as const;
+
+export type ContestActivationMode = (typeof CONTEST_ACTIVATION_MODE)[keyof typeof CONTEST_ACTIVATION_MODE];
+
 export const ATTEMPT_STATUS = {
   NOT_STARTED: 'not_started',
   IN_PROGRESS: 'in_progress',

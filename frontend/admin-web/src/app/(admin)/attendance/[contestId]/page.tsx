@@ -9,10 +9,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
+import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PillTabs } from '@/components/ui/PillTabs';
 import { Pagination } from '@/components/ui/Pagination';
 import Link from 'next/link';
-import { ArrowLeft, Download, UserCheck, Users, CheckCircle2, Clock, UserX, Search, Printer, FileText } from 'lucide-react';
+import { ArrowLeft, Download, UserCheck, Users, CheckCircle2, Clock, UserX, Search, Printer, FileText, FileSpreadsheet } from 'lucide-react';
+import { exportAttendancePdf } from '@/lib/exportPdf';
+import { exportAttendanceExcel } from '@/lib/exportExcel';
 
 interface AttendanceRecord {
   _id: string;
@@ -240,23 +243,45 @@ export default function AttendancePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
             onClick={handleExport}
             leftIcon={<Download className="w-3.5 h-3.5 text-slate-500" />}
           >
-            Export Detailed CSV
+            Direct CSV
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              exportAttendanceExcel({
+                contestTitle: contest?.title || 'Assessment Contest',
+                batchCode: (contest as any)?.batchCode || '—',
+                records,
+              })
+            }
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+          >
+            Direct Excel
           </Button>
 
           <Button
             variant="primary"
             size="sm"
-            onClick={() => window.print()}
-            leftIcon={<Printer className="w-3.5 h-3.5" />}
+            onClick={() =>
+              exportAttendancePdf({
+                contestTitle: contest?.title || 'Assessment Contest',
+                batchCode: (contest as any)?.batchCode || '—',
+                stats,
+                records,
+              })
+            }
+            leftIcon={<FileText className="w-3.5 h-3.5" />}
           >
-            Download Attendance PDF
+            Direct PDF
           </Button>
         </div>
       </div>
@@ -339,9 +364,7 @@ export default function AttendancePage() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <TableSkeleton rows={7} cols={6} />
       ) : (
         <>
           <Table

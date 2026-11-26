@@ -79,15 +79,24 @@ export class AttemptsService {
           }
         }
 
-        // Compute live/scheduled/ended dynamically
+        // Compute live/scheduled/ended dynamically adhering strictly to activationMode & isTurnedOff
         const now = Date.now();
-        const start = new Date(contest.startTime).getTime();
-        const end = new Date(contest.endTime).getTime();
+        const isManual = contest.activationMode === 'manual';
         let computedStatus = contest.status;
-        if (contest.status !== CONTEST_STATUS.DRAFT && contest.status !== CONTEST_STATUS.ARCHIVED) {
-          if (now < start) computedStatus = CONTEST_STATUS.SCHEDULED;
-          else if (now >= start && now <= end) computedStatus = CONTEST_STATUS.LIVE;
-          else if (now > end) computedStatus = CONTEST_STATUS.ENDED;
+
+        if (contest.isTurnedOff) {
+          computedStatus = CONTEST_STATUS.ENDED;
+        } else if (isManual) {
+          computedStatus = (contest.status === CONTEST_STATUS.LIVE || contest.status === 'live')
+            ? CONTEST_STATUS.LIVE
+            : CONTEST_STATUS.DRAFT;
+        } else if (contest.status !== CONTEST_STATUS.DRAFT && contest.status !== CONTEST_STATUS.ARCHIVED) {
+          const start = contest.startTime ? new Date(contest.startTime).getTime() : 0;
+          const end = contest.endTime ? new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000 : 0;
+          if (start && now < start) computedStatus = CONTEST_STATUS.SCHEDULED;
+          else if (start && end && now >= start && now <= end) computedStatus = CONTEST_STATUS.LIVE;
+          else if (end && now > end) computedStatus = CONTEST_STATUS.ENDED;
+          else computedStatus = contest.status || CONTEST_STATUS.DRAFT;
         }
 
         const canShowScore =
@@ -105,9 +114,10 @@ export class AttemptsService {
           endTime: contest.endTime,
           durationMinutes: contest.durationMinutes,
           gracePeriodMinutes: contest.gracePeriodMinutes || 0,
-          status: contest.status,
+          status: computedStatus,
           computedStatus,
-          isTurnedOff: contest.isTurnedOff || false,
+          activationMode: contest.activationMode || 'scheduled',
+          isTurnedOff: Boolean(contest.isTurnedOff),
           showTotalPointsEarned: contest.showTotalPointsEarned !== false,
           resultVisibility: contest.resultVisibility || 'immediate',
           proctorConfig: contest.proctorConfig || {},
@@ -161,6 +171,26 @@ export class AttemptsService {
       contest.showTotalPointsEarned !== false &&
       contest.resultVisibility !== 'hidden';
 
+    // Dynamic resolution of status matching activation mode
+    const now = Date.now();
+    const isManual = contest.activationMode === 'manual';
+    let resolvedStatus = contest.status;
+
+    if (contest.isTurnedOff) {
+      resolvedStatus = CONTEST_STATUS.ENDED;
+    } else if (isManual) {
+      resolvedStatus = (contest.status === CONTEST_STATUS.LIVE || contest.status === 'live')
+        ? CONTEST_STATUS.LIVE
+        : CONTEST_STATUS.DRAFT;
+    } else if (contest.status !== CONTEST_STATUS.DRAFT && contest.status !== CONTEST_STATUS.ARCHIVED) {
+      const start = contest.startTime ? new Date(contest.startTime).getTime() : 0;
+      const end = contest.endTime ? new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000 : 0;
+      if (start && now < start) resolvedStatus = CONTEST_STATUS.SCHEDULED;
+      else if (start && end && now >= start && now <= end) resolvedStatus = CONTEST_STATUS.LIVE;
+      else if (end && now > end) resolvedStatus = CONTEST_STATUS.ENDED;
+      else resolvedStatus = contest.status || CONTEST_STATUS.DRAFT;
+    }
+
     return {
       id: contest.id,
       title: contest.title,
@@ -172,7 +202,10 @@ export class AttemptsService {
       gracePeriodMinutes: contest.gracePeriodMinutes || 0,
       totalMarks,
       questionCount: questions.length,
-      status: contest.status,
+      status: resolvedStatus,
+      computedStatus: resolvedStatus,
+      activationMode: contest.activationMode || 'scheduled',
+      isTurnedOff: Boolean(contest.isTurnedOff),
       showTotalPointsEarned: contest.showTotalPointsEarned !== false,
       resultVisibility: contest.resultVisibility || 'immediate',
       proctorConfig: contest.proctorConfig || {},
@@ -199,16 +232,33 @@ export class AttemptsService {
     }
 
     const now = Date.now();
+    const isManual = contest.activationMode === 'manual';
     const isLive = contest.status === 'live' || contest.status === CONTEST_STATUS.LIVE;
-    const startWindow = new Date(contest.startTime).getTime();
-    const endWindow = new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000;
+    const startWindow = contest.startTime ? new Date(contest.startTime).getTime() : 0;
+    const endWindow = contest.endTime
+      ? new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000
+      : 0;
 
-    if (!isLive && now < startWindow && !user.isSuperAdmin) {
-      throw ApiError.badRequest('Contest has not started yet. Please wait for start time.', 'CONTEST_NOT_STARTED');
-    }
-
-    if (now > endWindow && !user.isSuperAdmin && !isLive) {
-      throw ApiError.badRequest('Contest window has ended.', 'CONTEST_ENDED');
+    if (isManual) {
+      if (!isLive && !user.isSuperAdmin) {
+        throw ApiError.badRequest('Assessment is currently turned OFF by the administrator.', 'CONTEST_NOT_LIVE');
+      }
+    } else {
+      // Scheduled Mode
+      if (contest.status === CONTEST_STATUS.DRAFT && !user.isSuperAdmin) {
+        throw ApiError.badRequest('Assessment is currently in draft mode.', 'CONTEST_DRAFT');
+      }
+      if (startWindow && now < startWindow && !user.isSuperAdmin) {
+        throw ApiError.badRequest('Contest has not started yet. Please wait for start time.', 'CONTEST_NOT_STARTED');
+      }
+      if (endWindow && now > endWindow && !user.isSuperAdmin) {
+        throw ApiError.badRequest('Contest window has ended.', 'CONTEST_ENDED');
+      }
+      if (!startWindow || !endWindow) {
+        if (!isLive && !user.isSuperAdmin) {
+          throw ApiError.badRequest('Contest timeline is not configured.', 'CONTEST_NOT_CONFIGURED');
+        }
+      }
     }
 
     // Auto-assign student if not assigned
@@ -240,8 +290,18 @@ export class AttemptsService {
       contest.durationMinutes,
       contest.endTime,
       contest.gracePeriodMinutes || 0,
-      0
+      0,
+      isManual
     );
+
+    let assignedQuestionIds = undefined;
+    if (contest.randomizeQuestions) {
+      const allQ = await questionRepository.findByContest(contestId);
+      const pool = allQ.filter((q) => q.includeInRandomPool !== false);
+      const limitCount = Math.min(contest.questionsPerParticipant || 2, pool.length);
+      const shuffled = [...pool].sort(() => 0.5 - Math.random());
+      assignedQuestionIds = shuffled.slice(0, limitCount).map((q) => q.id || q._id);
+    }
 
     attempt = await attemptRepository.create({
       contestId,
@@ -254,6 +314,7 @@ export class AttemptsService {
       extensionSeconds: 0,
       finalScore: 0,
       activeSessionId: Math.random().toString(36).substring(7),
+      assignedQuestionIds,
     });
 
     // Mark attendance Present automatically
@@ -292,12 +353,19 @@ export class AttemptsService {
       throw ApiError.badRequest('Attempt not started. Please call start first.');
     }
 
+    const isManual = contest.activationMode === 'manual';
+    if (contest.isTurnedOff && attempt.status === ATTEMPT_STATUS.IN_PROGRESS) {
+      await this.finishAttempt(contestId, user, 'contest_turned_off');
+      attempt.status = ATTEMPT_STATUS.SUBMITTED;
+    }
+
     const timing = calculateAttemptTiming(
       attempt.startedAt,
       contest.durationMinutes,
       contest.endTime,
       contest.gracePeriodMinutes || 0,
-      attempt.extensionSeconds || 0
+      attempt.extensionSeconds || 0,
+      isManual
     );
 
     if (timing.isExpired && attempt.status === ATTEMPT_STATUS.IN_PROGRESS) {
@@ -305,8 +373,22 @@ export class AttemptsService {
       attempt.status = ATTEMPT_STATUS.SUBMITTED;
     }
 
-    // Fetch questions sanitized for student
-    const questions = await questionRepository.findByContest(contestId);
+    // Fetch questions sanitized for student (adhering to randomized question pool if enabled)
+    let questions = await questionRepository.findByContest(contestId);
+    if (contest.randomizeQuestions) {
+      if (!attempt.assignedQuestionIds || !attempt.assignedQuestionIds.length) {
+        const pool = questions.filter((q) => q.includeInRandomPool !== false);
+        const limitCount = Math.min(contest.questionsPerParticipant || 2, pool.length);
+        const shuffled = [...pool].sort(() => 0.5 - Math.random());
+        attempt.assignedQuestionIds = shuffled.slice(0, limitCount).map((q) => q.id || q._id);
+        await attemptRepository.update(attempt.id, { assignedQuestionIds: attempt.assignedQuestionIds });
+      }
+      const assignedSet = new Set(attempt.assignedQuestionIds.map(String));
+      questions = questions.filter((q) => assignedSet.has(String(q.id)) || assignedSet.has(String(q._id)));
+    } else if (attempt.assignedQuestionIds && attempt.assignedQuestionIds.length > 0) {
+      const assignedSet = new Set(attempt.assignedQuestionIds.map(String));
+      questions = questions.filter((q) => assignedSet.has(String(q.id)) || assignedSet.has(String(q._id)));
+    }
     const sanitizedQuestions = questions.map((q) => {
       if (q.type === 'mcq') {
         const rawOpts = q.mcqOptions || q.options || [];
@@ -406,6 +488,8 @@ export class AttemptsService {
         proctorConfig: contest.proctorConfig || {},
         showTotalPointsEarned: contest.showTotalPointsEarned !== false,
         resultVisibility: contest.resultVisibility || 'immediate',
+        activationMode: contest.activationMode || 'scheduled',
+        isTurnedOff: Boolean(contest.isTurnedOff),
         codeRunCooldownSeconds,
         maxCodeSubmissions,
       },
@@ -448,6 +532,11 @@ export class AttemptsService {
   }
 
   async saveAnswer(contestId, user, { questionId, selectedOptions, isMarkedForReview, draftCode, language }) {
+    const contest = await contestRepository.findById(contestId);
+    if (contest?.isTurnedOff) {
+      throw ApiError.badRequest('This assessment has been turned off by the administrator.', 'CONTEST_OFF');
+    }
+
     const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
     if (!attempt) throw ApiError.notFound('Attempt not found');
     if (attempt.status === ATTEMPT_STATUS.SUBMITTED) {
@@ -466,7 +555,11 @@ export class AttemptsService {
 
   async runCode(contestId, user, { questionId, code, language, customInput }) {
     const contest = await contestRepository.findById(contestId);
-    const cooldownSeconds = contest?.codeRunCooldownSeconds ?? 30;
+    if (!contest) throw ApiError.notFound('Contest not found');
+    if (contest.isTurnedOff) {
+      throw ApiError.badRequest('This assessment has been turned off by the administrator.', 'CONTEST_OFF');
+    }
+    const cooldownSeconds = contest.codeRunCooldownSeconds ?? 30;
 
     const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
     if (attempt && cooldownSeconds > 0) {
@@ -566,13 +659,18 @@ export class AttemptsService {
   }
 
   async submitCode(contestId, user, { questionId, code, language }) {
+    const contest = await contestRepository.findById(contestId);
+    if (!contest) throw ApiError.notFound('Contest not found');
+    if (contest.isTurnedOff) {
+      throw ApiError.badRequest('This assessment has been turned off by the administrator.', 'CONTEST_OFF');
+    }
+
     const attempt = await attemptRepository.findByContestAndUser(contestId, user.userId);
     if (!attempt) throw ApiError.notFound('Attempt not found');
     if (attempt.status === ATTEMPT_STATUS.SUBMITTED) {
       throw ApiError.attemptLocked();
     }
 
-    const contest = await contestRepository.findById(contestId);
     const maxSubmissions = contest?.maxCodeSubmissions ?? 3;
     const existingList = await submissionRepository.findByAttemptAndQuestion(attempt.id, questionId);
     const existingCount = existingList?.length || 0;
@@ -631,7 +729,15 @@ export class AttemptsService {
     const passedCases = caseResults.filter((c) => c.passed).length;
     const totalCases = caseResults.length;
     const percentage = totalCases > 0 ? (passedCases / totalCases) * 100 : 0;
-    const overallVerdict = passedCases === totalCases ? SUBMISSION_VERDICT.PASSED : SUBMISSION_VERDICT.FAILED;
+    const hasCompileError = caseResults.some((c) => c.verdict === SUBMISSION_VERDICT.COMPILE_ERROR);
+    const hasRuntimeError = caseResults.some((c) => c.verdict === SUBMISSION_VERDICT.RUNTIME_ERROR);
+
+    let overallVerdict = passedCases === totalCases ? SUBMISSION_VERDICT.PASSED : SUBMISSION_VERDICT.FAILED;
+    if (hasCompileError) {
+      overallVerdict = SUBMISSION_VERDICT.COMPILE_ERROR;
+    } else if (hasRuntimeError && passedCases === 0) {
+      overallVerdict = SUBMISSION_VERDICT.RUNTIME_ERROR;
+    }
 
     const submission = await submissionRepository.create({
       attemptId: attempt.id,
@@ -773,8 +879,8 @@ export class AttemptsService {
     const startTimeMs = new Date(attempt.startedAt).getTime();
     const completionTimeSeconds = Math.max(0, Math.floor((now.getTime() - startTimeMs) / 1000));
 
-    // Calculate final score using Rubric Engine
-    const finalScore = RubricEngine.calculateScore(rubric, {
+    // Calculate final score using Refined Rubric Engine
+    const rubricResult = RubricEngine.calculateScore(rubric, {
       mcqAccuracy,
       sampleCasesPassedPct,
       hiddenCasesPassedPct,
@@ -784,6 +890,9 @@ export class AttemptsService {
       wrongAttempts: 0,
       avgRuntimeMs: 80,
     });
+
+    const finalScore = typeof rubricResult === 'object' ? rubricResult.finalScore : Number(rubricResult) || 0;
+    const scoreBreakdown = typeof rubricResult === 'object' ? rubricResult.breakdown : null;
 
     const submittedAt = now.toISOString();
 
@@ -795,6 +904,7 @@ export class AttemptsService {
       mcqScore: Math.max(0, mcqScore),
       codingScore,
       completionTimeSeconds,
+      scoreBreakdown,
       metrics: {
         mcqAccuracy,
         sampleCasesPassedPct,

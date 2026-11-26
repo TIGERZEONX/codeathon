@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, contestsApi } from '@/lib/api';
 import { Spinner } from '@/components/ui/Spinner';
+import { MetricCardsSkeleton, TableSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
@@ -163,9 +164,9 @@ export default function DashboardPage() {
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-3">
-          <Spinner size="lg" />
-          <p className="text-xs text-slate-400 font-medium">Gathering live contest telemetry...</p>
+        <div className="space-y-6">
+          <MetricCardsSkeleton count={4} />
+          <TableSkeleton rows={5} cols={4} />
         </div>
       ) : isError ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 p-10 text-center space-y-3">

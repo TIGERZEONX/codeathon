@@ -16,15 +16,19 @@ export class ContestsService {
       const q = query.search.toLowerCase();
       list = list.filter((c) => c.title.toLowerCase().includes(q) || (c.description && c.description.toLowerCase().includes(q)));
     }
-    // Update live/ended status automatically based on current wall clock
+    // Update live/ended status automatically based on current wall clock & activation mode
     const now = Date.now();
     return list.map((c) => {
       let resolvedStatus = c.status;
+      const isManual = c.activationMode === 'manual';
+
       if (c.isTurnedOff) {
         resolvedStatus = CONTEST_STATUS.ENDED;
+      } else if (isManual) {
+        resolvedStatus = c.status === CONTEST_STATUS.LIVE ? CONTEST_STATUS.LIVE : c.status;
       } else if (c.status !== CONTEST_STATUS.DRAFT && c.status !== CONTEST_STATUS.ARCHIVED) {
         const start = new Date(c.startTime).getTime();
-        const end = new Date(c.endTime).getTime();
+        const end = new Date(c.endTime).getTime() + (c.gracePeriodMinutes || 0) * 60 * 1000;
         if (now < start) resolvedStatus = CONTEST_STATUS.SCHEDULED;
         else if (now >= start && now <= end) resolvedStatus = CONTEST_STATUS.LIVE;
         else if (now > end) resolvedStatus = CONTEST_STATUS.ENDED;
@@ -37,8 +41,28 @@ export class ContestsService {
     const contest = await contestRepository.findById(id);
     if (!contest) throw ApiError.notFound('Contest not found');
     const sections = await sectionRepository.findByContest(id);
+    const now = Date.now();
+    let resolvedStatus = contest.status;
+    const isManual = contest.activationMode === 'manual';
+
+    if (contest.isTurnedOff) {
+      resolvedStatus = CONTEST_STATUS.ENDED;
+    } else if (isManual) {
+      resolvedStatus = (contest.status === CONTEST_STATUS.LIVE || contest.status === 'live')
+        ? CONTEST_STATUS.LIVE
+        : (contest.status || CONTEST_STATUS.DRAFT);
+    } else if (contest.status !== CONTEST_STATUS.DRAFT && contest.status !== CONTEST_STATUS.ARCHIVED) {
+      const start = contest.startTime ? new Date(contest.startTime).getTime() : 0;
+      const end = contest.endTime ? new Date(contest.endTime).getTime() + (contest.gracePeriodMinutes || 0) * 60 * 1000 : 0;
+      if (start && now < start) resolvedStatus = CONTEST_STATUS.SCHEDULED;
+      else if (start && end && now >= start && now <= end) resolvedStatus = CONTEST_STATUS.LIVE;
+      else if (end && now > end) resolvedStatus = CONTEST_STATUS.ENDED;
+      else resolvedStatus = contest.status || CONTEST_STATUS.DRAFT;
+    }
+
     return {
       ...contest,
+      computedStatus: resolvedStatus,
       sections,
     };
   }
@@ -65,6 +89,10 @@ export class ContestsService {
         contestId: id,
         updates,
       });
+      io.emit('contest:status-changed', {
+        contestId: id,
+        updates,
+      });
     }
 
     return updated;
@@ -80,15 +108,19 @@ export class ContestsService {
     const updated = await contestRepository.update(id, {
       isTurnedOff: willBeOff,
       status: newStatus,
+      activationMode: 'manual',
     });
 
     const io = getSocketServer();
     if (io) {
-      io.to(`contest:${id}`).emit('contest:status-changed', {
+      const payload = {
         contestId: id,
         isTurnedOff: willBeOff,
         status: newStatus,
-      });
+        activationMode: 'manual',
+      };
+      io.to(`contest:${id}`).emit('contest:status-changed', payload);
+      io.emit('contest:status-changed', payload);
     }
 
     return updated;

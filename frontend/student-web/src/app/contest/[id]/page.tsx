@@ -1,9 +1,11 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contestApi } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { Spinner } from '@/components/ui/Spinner';
+import { ContestEntrySkeleton } from '@/components/ui/Skeleton';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -23,15 +25,51 @@ function formatDuration(minutes: number) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function formatCountdown(seconds: number) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
 export default function ContestEntryPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  const [currentNow, setCurrentNow] = useState<number>(Date.now());
+
+  // 1-second live ticker for dynamic wall-clock updates
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { data: contestData, isLoading } = useQuery({
     queryKey: ['contest', id],
     queryFn: () => contestApi.getContest(id).catch(() => null),
     retry: false,
   });
+
+  // Real-time WebSocket listener for immediate instant status changes
+  useEffect(() => {
+    if (!id) return;
+    const socket = getSocket();
+    socket.emit('join:contest', { contestId: id });
+    const handleStatusChange = (data: any) => {
+      if (!data || !data.contestId || data.contestId === id) {
+        queryClient.invalidateQueries({ queryKey: ['contest', id] });
+        queryClient.invalidateQueries({ queryKey: ['attempt-check', id] });
+      }
+    };
+    socket.on('contest:status-changed', handleStatusChange);
+    return () => {
+      socket.off('contest:status-changed', handleStatusChange);
+    };
+  }, [id, queryClient]);
 
   const { data: attemptData } = useQuery({
     queryKey: ['attempt-check', id],
@@ -41,11 +79,15 @@ export default function ContestEntryPage() {
 
   useEffect(() => {
     const raw = (contestData as any)?.attempt || attemptData;
+    const isOff = Boolean((contestData as any)?.isTurnedOff);
+    const computedSt = (contestData as any)?.computedStatus || (contestData as any)?.status;
+    const isLive = !isOff && computedSt === 'live';
+
     if (raw) {
       const a = (raw as any)?.attempt || raw;
       if (a?.status === 'submitted' || a?.status === 'graded') {
         router.replace(`/contest/${id}/results`);
-      } else if (a?.status === 'in_progress') {
+      } else if (a?.status === 'in_progress' && isLive) {
         router.replace(`/contest/${id}/attempt`);
       }
     }
@@ -56,12 +98,8 @@ export default function ContestEntryPage() {
     onSuccess: () => router.push(`/contest/${id}/attempt`),
   });
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Spinner size="lg" />
-      </div>
-    );
+  if (isLoading || !contestData) {
+    return <ContestEntrySkeleton />;
   }
 
   const contest = contestData as {
@@ -71,6 +109,10 @@ export default function ContestEntryPage() {
     durationMinutes?: number;
     totalMarks?: number;
     description?: string;
+    activationMode?: 'scheduled' | 'manual';
+    isTurnedOff?: boolean;
+    computedStatus?: string;
+    status?: string;
     proctorConfig?: {
       enabled?: boolean;
       blockTabSwitch?: boolean;
@@ -79,14 +121,56 @@ export default function ContestEntryPage() {
       blockRightClick?: boolean;
       maxViolations?: number;
     };
-  } | null;
+  };
 
-  const now = new Date();
-  const start = contest?.startTime ? new Date(contest.startTime) : null;
-  const end = contest?.endTime ? new Date(contest.endTime) : null;
-  const isLive = start && end ? now >= start && now <= end : false;
-  const isUpcoming = start ? now < start : false;
-  const isOver = end ? now > end : false;
+  const isManual = contest.activationMode === 'manual';
+  const isTurnedOff = Boolean(contest.isTurnedOff);
+  const rawStatus = (contest.computedStatus || contest.status || 'draft').toLowerCase();
+
+  const startMs = contest.startTime ? new Date(contest.startTime).getTime() : 0;
+  const endMs = contest.endTime ? new Date(contest.endTime).getTime() : 0;
+  const start = startMs ? new Date(startMs) : null;
+  const end = endMs ? new Date(endMs) : null;
+
+  let isLive = false;
+  let isUpcoming = false;
+  let isOver = false;
+
+  if (isTurnedOff) {
+    // Explicitly turned off by administrator in either mode
+    isOver = true;
+  } else if (isManual) {
+    // In MANUAL mode: ONLY LIVE when admin turned it ON (status === 'live' or computedStatus === 'live')
+    if (rawStatus === 'live') {
+      isLive = true;
+    } else if (rawStatus === 'ended' || rawStatus === 'archived') {
+      isOver = true;
+    } else {
+      // 'draft', 'scheduled', or not yet activated by admin
+      isUpcoming = true;
+    }
+  } else {
+    // In SCHEDULED mode:
+    if (rawStatus === 'draft') {
+      isUpcoming = true;
+    } else if (rawStatus === 'archived' || rawStatus === 'ended') {
+      isOver = true;
+    } else if (startMs && currentNow < startMs) {
+      // Scheduled start time is in the future
+      isUpcoming = true;
+    } else if (endMs && currentNow > endMs) {
+      // Scheduled end time has passed
+      isOver = true;
+    } else if (startMs && endMs && currentNow >= startMs && currentNow <= endMs) {
+      // Current time is strictly inside the live window
+      isLive = true;
+    } else {
+      // Missing or invalid timeline dates
+      isUpcoming = true;
+    }
+  }
+
+  const secondsUntilStart = startMs && currentNow < startMs ? Math.max(0, Math.floor((startMs - currentNow) / 1000)) : 0;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -243,7 +327,7 @@ export default function ContestEntryPage() {
 
         {/* Action Button */}
         <div className="flex flex-col items-center justify-center pt-2">
-          {isLive || !contest ? (
+          {isLive ? (
             <Button
               size="lg"
               onClick={() => startMutation.mutate()}
@@ -253,15 +337,46 @@ export default function ContestEntryPage() {
             >
               Start Assessment Now
             </Button>
-          ) : isUpcoming && start ? (
-            <div className="text-center bg-white border border-slate-200 rounded-2xl p-6 shadow-xs max-w-sm">
-              <p className="text-sm font-semibold text-slate-800">Contest has not opened yet</p>
-              <p className="text-xs text-slate-500 mt-1">Opens at {start.toLocaleString()}</p>
+          ) : isUpcoming ? (
+            <div className="text-center bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 shadow-xs max-w-md w-full space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+                <Clock className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <h4 className="text-base font-bold text-slate-900">
+                  {isManual ? 'Assessment is Currently Turned OFF' : 'Assessment Opens Soon'}
+                </h4>
+                {isManual ? (
+                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    This contest is set to Manual Activation mode. Waiting for the administrator to turn the assessment LIVE. This page will update automatically as soon as it is turned on.
+                  </p>
+                ) : secondsUntilStart > 0 ? (
+                  <div className="mt-2.5">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Live Countdown</span>
+                    <span className="text-3xl font-mono font-black text-[#3760F8] tracking-tight">
+                      {formatCountdown(secondsUntilStart)}
+                    </span>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Unlocks at {start ? start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'start time'}. Your test will unlock automatically without refreshing.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">
+                    {rawStatus === 'draft'
+                      ? 'This assessment is currently in draft mode.'
+                      : 'Preparing test session. Unlocking in real-time...'}
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="text-center bg-white border border-slate-200 rounded-2xl p-6 shadow-xs max-w-sm">
-              <p className="text-sm font-semibold text-slate-800">Contest closed</p>
-              <p className="text-xs text-slate-500 mt-1">This test has officially concluded.</p>
+              <p className="text-sm font-semibold text-slate-800">Contest Closed</p>
+              <p className="text-xs text-slate-500 mt-1">
+                {isTurnedOff
+                  ? 'This assessment has been turned off by the administrator.'
+                  : 'This test has officially concluded.'}
+              </p>
             </div>
           )}
 

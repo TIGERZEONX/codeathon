@@ -32,6 +32,8 @@ import {
   Edit2,
   Power,
   PowerOff,
+  Calendar,
+  Mail,
 } from 'lucide-react';
 
 interface Section {
@@ -129,6 +131,7 @@ export default function ContestDetailPage() {
     startTime: '',
     endTime: '',
     durationMinutes: 180,
+    activationMode: 'scheduled',
     rubricId: '',
     description: '',
     instructions: '',
@@ -144,6 +147,8 @@ export default function ContestDetailPage() {
     showTotalPointsEarned: true,
     codeRunCooldownSeconds: 30,
     maxCodeSubmissions: 3,
+    randomizeQuestions: false,
+    questionsPerParticipant: 2,
   });
 
   const openEditContest = () => {
@@ -155,6 +160,7 @@ export default function ContestDetailPage() {
       startTime: contest.startTime?.slice(0, 16) || '',
       endTime: contest.endTime?.slice(0, 16) || '',
       durationMinutes: contest.durationMinutes || 60,
+      activationMode: (contest as any).activationMode || 'scheduled',
       rubricId: contest.rubricId || '',
       description: contest.description || '',
       instructions: contest.instructions || '',
@@ -170,6 +176,8 @@ export default function ContestDetailPage() {
       showTotalPointsEarned: contest.showTotalPointsEarned ?? true,
       codeRunCooldownSeconds: contest.codeRunCooldownSeconds ?? 30,
       maxCodeSubmissions: contest.maxCodeSubmissions ?? 3,
+      randomizeQuestions: Boolean(contest.randomizeQuestions),
+      questionsPerParticipant: contest.questionsPerParticipant || 2,
     });
     setShowEditModal(true);
   };
@@ -191,13 +199,18 @@ export default function ContestDetailPage() {
       if (!editForm.title.trim()) {
         throw new Error('Contest title is required.');
       }
+      const isManual = editForm.activationMode === 'manual';
+      const startIso = isManual ? new Date().toISOString() : (editForm.startTime ? new Date(editForm.startTime).toISOString() : undefined);
+      const endIso = isManual ? new Date(Date.now() + 365 * 86400000).toISOString() : (editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined);
+
       return contestsApi.update(contestId, {
         title: editForm.title.trim(),
         batchCode: editForm.batchCode?.trim() || undefined,
         description: editForm.description.trim() || undefined,
         instructions: editForm.instructions.trim() || undefined,
-        startTime: editForm.startTime ? new Date(editForm.startTime).toISOString() : undefined,
-        endTime: editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined,
+        activationMode: editForm.activationMode || 'scheduled',
+        startTime: startIso,
+        endTime: endIso,
         durationMinutes: Number(editForm.durationMinutes) || 60,
         rubricId: editForm.rubricId || undefined,
         proctorConfig: {
@@ -222,6 +235,8 @@ export default function ContestDetailPage() {
         showTotalPointsEarned: editForm.showTotalPointsEarned,
         codeRunCooldownSeconds: Number(editForm.codeRunCooldownSeconds) ?? 30,
         maxCodeSubmissions: Number(editForm.maxCodeSubmissions) ?? 3,
+        randomizeQuestions: editForm.randomizeQuestions,
+        questionsPerParticipant: Number(editForm.questionsPerParticipant) || 2,
       });
     },
     onSuccess: () => {
@@ -393,6 +408,7 @@ export default function ContestDetailPage() {
   const TABS = [
     { key: 'questions', label: 'Questions & Sections', icon: Layers },
     { key: 'assignments', label: 'Assignments', icon: Users },
+    { key: 'invitations', label: 'Email Invitations', icon: Mail },
     { key: 'attendance', label: 'Live Attendance', icon: UserCheck },
     { key: 'leaderboard', label: 'Leaderboard', icon: Trophy },
   ];
@@ -479,6 +495,25 @@ export default function ContestDetailPage() {
       {/* Tab Content Views */}
       {activeTab === 'assignments' ? (
         <ContestAssignmentsTab contestId={contestId} />
+      ) : activeTab === 'invitations' ? (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <Mail className="w-4 h-4 text-[#3760F8]" />
+                <span>Candidate Email Invitations</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Dispatch official test invitation emails with credentials, batch code, portal URL, and login instructions.
+              </p>
+            </div>
+            <Link href={`/invitations?contestId=${contestId}`}>
+              <Button size="sm" leftIcon={<Mail className="w-3.5 h-3.5" />}>
+                Open Full Invitations Hub &rarr;
+              </Button>
+            </Link>
+          </div>
+        </div>
       ) : activeTab === 'attendance' ? (
         <ContestAttendanceTab contestId={contestId} />
       ) : activeTab === 'leaderboard' ? (
@@ -923,20 +958,76 @@ export default function ContestDetailPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Start Window *"
-              type="datetime-local"
-              value={editForm.startTime}
-              onChange={(e) => setEditForm((f) => ({ ...f, startTime: e.target.value }))}
-            />
-            <Input
-              label="End Window *"
-              type="datetime-local"
-              value={editForm.endTime}
-              onChange={(e) => setEditForm((f) => ({ ...f, endTime: e.target.value }))}
-            />
+          {/* Activation Mode Selector */}
+          <div className="space-y-2 p-3.5 bg-slate-50 rounded-2xl border border-slate-200">
+            <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block">
+              Activation Mode *
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setEditForm((f) => ({ ...f, activationMode: 'scheduled' }))}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  (editForm.activationMode || 'scheduled') === 'scheduled'
+                    ? 'border-[#3760F8] bg-blue-50/60 text-[#3760F8] ring-2 ring-[#3760F8]/20 font-bold'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-[#3760F8]" />
+                  <span className="text-xs font-bold">Scheduled Timer</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+                  Auto-opens at start time and closes at end time.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEditForm((f) => ({ ...f, activationMode: 'manual' }))}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  editForm.activationMode === 'manual'
+                    ? 'border-emerald-600 bg-emerald-50/60 text-emerald-800 ring-2 ring-emerald-600/20 font-bold'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Power className="w-4 h-4 text-emerald-600" />
+                  <span className="text-xs font-bold">Manual Control</span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-normal mt-1 leading-relaxed">
+                  You turn the assessment ON/OFF live using the switch.
+                </p>
+              </button>
+            </div>
           </div>
+
+          {editForm.activationMode === 'manual' ? (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <Power className="w-3.5 h-3.5 text-emerald-600" />
+                Manual Control Active
+              </p>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                Scheduled timer is disabled. Students will take the test for the set duration whenever you turn the assessment ON.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Start Window *"
+                type="datetime-local"
+                value={editForm.startTime}
+                onChange={(e) => setEditForm((f) => ({ ...f, startTime: e.target.value }))}
+              />
+              <Input
+                label="End Window *"
+                type="datetime-local"
+                value={editForm.endTime}
+                onChange={(e) => setEditForm((f) => ({ ...f, endTime: e.target.value }))}
+              />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
@@ -1124,6 +1215,46 @@ export default function ContestDetailPage() {
                 <p className="text-[10px] text-slate-500 mt-1">Maximum number of times a candidate can submit code per challenge.</p>
               </div>
             </div>
+          </div>
+
+          {/* Dynamic Question Randomization */}
+          <div className="border border-slate-200 rounded-2xl p-4 space-y-3 bg-slate-50/50">
+            <div className="flex items-center gap-2.5">
+              <input
+                type="checkbox"
+                id="editRandomizeQuestions"
+                className="w-4 h-4 text-[#3760F8] accent-[#3760F8] rounded cursor-pointer"
+                checked={editForm.randomizeQuestions}
+                onChange={(e) => setEditForm((f) => ({ ...f, randomizeQuestions: e.target.checked }))}
+              />
+              <label htmlFor="editRandomizeQuestions" className="text-xs font-bold text-slate-800 cursor-pointer">
+                Enable Dynamic Question Randomization
+              </label>
+            </div>
+            <p className="text-[11px] text-slate-500 ml-6">
+              When enabled, each candidate receives a randomly selected subset of questions from the question bank. Their assigned questions remain persistent throughout the assessment session.
+            </p>
+
+            {editForm.randomizeQuestions && (
+              <div className="ml-6 pt-1">
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                  Questions to Assign per Participant *
+                </label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={String(editForm.questionsPerParticipant || 2)}
+                  onChange={(e) =>
+                    setEditForm((f) => ({ ...f, questionsPerParticipant: Math.max(1, Number(e.target.value)) }))
+                  }
+                  placeholder="2"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Example: If the contest bank has 40 questions and this is set to 2, each participant will receive 2 randomly assigned challenges.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2.5 justify-end pt-3 border-t border-slate-100">
