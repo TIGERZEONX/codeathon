@@ -84,11 +84,22 @@ export default function AttendancePage() {
   // Safely extract records whether backend returns an array or { records: [...] }
   const records: AttendanceRecord[] = useMemo(() => {
     if (!data) return [];
-    if (Array.isArray(data)) return data;
-    if (Array.isArray((data as any).records)) return (data as any).records;
-    if (Array.isArray((data as any).data)) return (data as any).data;
-    return [];
-  }, [data]);
+    const list = Array.isArray(data)
+      ? data
+      : Array.isArray((data as any).records)
+      ? (data as any).records
+      : Array.isArray((data as any).data)
+      ? (data as any).data
+      : [];
+    return list.map((r: any) => ({
+      ...r,
+      email: r.email && r.email !== '—' && r.email !== 'null' ? r.email : (r.userEmail || r.candidateEmail || r.participantEmail || '—'),
+      name: r.name || r.participantName || r.userName || 'Candidate',
+      participantName: r.participantName || r.name || r.userName || 'Candidate',
+      contestTitle: r.contestTitle || contest?.title,
+      batchCode: r.batchCode || (contest as any)?.batchCode,
+    }));
+  }, [data, contest]);
   const pagination = (data as any)?.pagination;
 
   const stats = useMemo(() => {
@@ -192,32 +203,35 @@ export default function AttendancePage() {
     },
     {
       key: 'actions',
-      header: 'Edit Attendance',
+      header: 'Mark Attendance',
       render: (r: AttendanceRecord) => {
         const uId = r.userId || r.participantId || r.id || r._id;
         const currentStatus = r.status || 'absent';
         return (
           <div className="flex items-center gap-1.5">
-            <select
-              value={currentStatus === 'completed' ? 'present' : currentStatus}
-              onChange={(e) => {
-                const newStatus = e.target.value;
-                if (uId) {
-                  markMutation.mutate({ userId: uId, status: newStatus });
-                }
-              }}
-              disabled={markMutation.isPending}
-              className={`text-xs font-semibold rounded-lg px-2.5 py-1 border transition-colors cursor-pointer focus:outline-hidden ${
-                currentStatus === 'present' || currentStatus === 'completed'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                  : 'bg-slate-50 text-slate-700 border-slate-300'
-              }`}
-            >
-              <option value="present">Present</option>
-              <option value="absent">Absent</option>
-            </select>
+            {currentStatus === 'absent' ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[11px] h-7 px-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-300 font-semibold"
+                disabled={markMutation.isPending}
+                onClick={() => uId && markMutation.mutate({ userId: uId, status: 'present' })}
+              >
+                Mark Present
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[11px] h-7 px-2.5 text-rose-700 bg-rose-50 hover:bg-rose-100 border-rose-300 font-semibold"
+                disabled={markMutation.isPending}
+                onClick={() => uId && markMutation.mutate({ userId: uId, status: 'absent' })}
+              >
+                Mark Absent
+              </Button>
+            )}
             {currentStatus === 'completed' && (
-              <span className="text-[10px] text-indigo-600 font-medium bg-indigo-50 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] text-indigo-700 font-semibold bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
                 Submitted
               </span>
             )}
@@ -295,8 +309,8 @@ export default function AttendancePage() {
             size="sm"
             onClick={() =>
               exportAttendanceExcel({
-                contestTitle: contest?.title || 'Assessment Contest',
-                batchCode: (contest as any)?.batchCode || '—',
+                contestTitle: contest?.title || (records[0] as any)?.contestTitle || 'Assessment Contest',
+                batchCode: (contest as any)?.batchCode || (records[0] as any)?.batchCode || '—',
                 records,
               })
             }
@@ -310,8 +324,8 @@ export default function AttendancePage() {
             size="sm"
             onClick={() =>
               exportAttendancePdf({
-                contestTitle: contest?.title || 'Assessment Contest',
-                batchCode: (contest as any)?.batchCode || '—',
+                contestTitle: contest?.title || (records[0] as any)?.contestTitle || 'Assessment Contest',
+                batchCode: (contest as any)?.batchCode || (records[0] as any)?.batchCode || '—',
                 stats,
                 records,
               })

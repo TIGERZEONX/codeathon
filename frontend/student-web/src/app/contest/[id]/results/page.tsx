@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { contestApi, leaderboardApi } from '@/lib/api';
@@ -8,7 +8,15 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ResultsSkeleton } from '@/components/ui/Skeleton';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles, Calendar, User, ArrowUpDown, Filter } from 'lucide-react';
+import { Trophy, Clock, ArrowLeft, CheckCircle2, Award, Sparkles, Calendar, User, ArrowUpDown, Filter, ChevronDown, Check } from 'lucide-react';
+
+const SORT_OPTIONS = [
+  { value: 'score_desc_time_asc', label: 'Highest Score • Shortest Time (Official)', desc: 'Official evaluation standard' },
+  { value: 'score_desc_time_desc', label: 'Highest Score • Longest Time', desc: 'Highest total score with maximum duration' },
+  { value: 'time_asc_score_desc', label: 'Shortest Time • Highest Score', desc: 'Fastest submissions first' },
+  { value: 'score_asc_time_asc', label: 'Lowest Score • Shortest Time', desc: 'Lowest marks with fastest submissions' },
+  { value: 'time_desc_score_asc', label: 'Longest Time • Lowest Score', desc: 'Longest duration with lowest marks' },
+];
 
 interface LeaderboardEntry {
   rank: number;
@@ -36,14 +44,27 @@ export default function ResultsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [sortFilter, setSortFilter] = useState<'score_desc_time_asc' | 'score_desc_time_desc' | 'time_asc_score_desc' | 'score_asc_time_asc' | 'time_desc_score_asc'>('score_desc_time_asc');
+  const [isSortOpen, setIsSortOpen] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const { data: attemptData, isLoading } = useQuery({
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setIsSortOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const { data: attemptData, isLoading, isError } = useQuery({
     queryKey: ['attempt-result', id],
     queryFn: () => contestApi.getAttemptState(id),
+    retry: 1,
   });
 
   const { data: lbData } = useQuery({
@@ -53,7 +74,7 @@ export default function ResultsPage() {
   });
 
   const rawAttempt: any = (attemptData as any)?.attempt || attemptData;
-  const contestInfo: any = (attemptData as any)?.contest || {};
+  const contestInfo: any = (attemptData as any)?.contest || attemptData || {};
 
   // If attempt was revoked/unlocked, redirect student directly to attempt page
   useEffect(() => {
@@ -75,34 +96,39 @@ export default function ResultsPage() {
     };
   }, [id, router]);
 
-  const rawEntries: any = (lbData as any)?.entries || (Array.isArray(lbData) ? lbData : []);
+  const rawEntries: any[] = Array.isArray((lbData as any)?.entries)
+    ? (lbData as any).entries
+    : Array.isArray(lbData)
+    ? lbData
+    : [];
+
   const leaderboard: (LeaderboardEntry & { displayRank?: number })[] = useMemo(() => {
     const list: (LeaderboardEntry & { displayRank?: number })[] = rawEntries.map((e: any, idx: number) => {
-      const entrySecs = Number(e.completionTimeSeconds) || 0;
+      const entrySecs = Number(e?.completionTimeSeconds) || 0;
       const fallbackFormatted = entrySecs > 0
         ? (entrySecs >= 3600
             ? `${Math.floor(entrySecs / 3600)}h ${Math.floor((entrySecs % 3600) / 60).toString().padStart(2, '0')}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
             : entrySecs >= 60
             ? `${Math.floor(entrySecs / 60)}m ${(entrySecs % 60).toString().padStart(2, '0')}s`
             : `${entrySecs}s`)
-        : (e.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
+        : (e?.timeTakenMinutes != null ? `${e.timeTakenMinutes}m` : '—');
 
       return {
-        rank: e.rank || idx + 1,
-        displayName: e.displayName || e.name || 'Participant',
-        totalScore: e.totalScore ?? e.score ?? 0,
-        formattedTimeTaken: e.formattedTimeTaken || fallbackFormatted,
+        rank: e?.rank || idx + 1,
+        displayName: e?.displayName || e?.name || 'Participant',
+        totalScore: Number(e?.totalScore ?? e?.score ?? 0),
+        formattedTimeTaken: e?.formattedTimeTaken || fallbackFormatted,
         completionTimeSeconds: entrySecs,
         isCurrentUser: Boolean(
-          e.isCurrentUser ||
-          (rawAttempt?.userId && (e.userId === rawAttempt.userId || e.participantId === rawAttempt.userId))
+          e?.isCurrentUser ||
+          (rawAttempt?.userId && (e?.userId === rawAttempt.userId || e?.participantId === rawAttempt.userId))
         ),
       };
     });
 
     list.sort((a, b) => {
-      const aScore = a.totalScore;
-      const bScore = b.totalScore;
+      const aScore = Number(a.totalScore) || 0;
+      const bScore = Number(b.totalScore) || 0;
       const aTime = (a.completionTimeSeconds && a.completionTimeSeconds > 0) ? a.completionTimeSeconds : 999999999;
       const bTime = (b.completionTimeSeconds && b.completionTimeSeconds > 0) ? b.completionTimeSeconds : 999999999;
 
@@ -136,10 +162,32 @@ export default function ResultsPage() {
     return <ResultsSkeleton />;
   }
 
-  if (!rawAttempt) {
+  if (rawAttempt?.status === 'in_progress') {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500 bg-slate-50">
-        Results not found.
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-center gap-3">
+        <Spinner size="lg" />
+        <p className="text-sm text-slate-600 font-medium">Test in progress. Redirecting to assessment room...</p>
+      </div>
+    );
+  }
+
+  if (isError || !rawAttempt || !attemptData) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 text-center">
+        <div className="bg-white rounded-3xl border border-slate-200 p-8 max-w-md shadow-xs space-y-4">
+          <div className="w-12 h-12 rounded-full bg-blue-50 text-[#3760F8] flex items-center justify-center mx-auto">
+            <Trophy className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Assessment Results</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              No completed submission was found for this assessment.
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => router.push('/dashboard')} className="w-full">
+            Back to Dashboard
+          </Button>
+        </div>
       </div>
     );
   }
@@ -334,23 +382,57 @@ export default function ResultsPage() {
                 </p>
               </div>
 
-              {/* Sort Filter Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
-                  <ArrowUpDown className="w-3.5 h-3.5 text-[#3760F8]" />
-                  Sort:
-                </span>
-                <select
-                  value={sortFilter}
-                  onChange={(e) => setSortFilter(e.target.value as any)}
-                  className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-slate-700 focus:outline-hidden focus:ring-2 focus:ring-[#3760F8]/20 focus:border-[#3760F8] transition-all cursor-pointer shadow-2xs"
+              {/* Custom Sort Filter Dropdown */}
+              <div className="relative" ref={sortDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsSortOpen((prev) => !prev)}
+                  className="flex items-center justify-between gap-2.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-[#3760F8]/30 transition-all cursor-pointer min-w-[260px] max-w-[340px]"
                 >
-                  <option value="score_desc_time_asc">Highest Score &bull; Shortest Time (Official)</option>
-                  <option value="score_desc_time_desc">Highest Score &bull; Longest Time</option>
-                  <option value="time_asc_score_desc">Shortest Time &bull; Highest Score</option>
-                  <option value="score_asc_time_asc">Lowest Score &bull; Shortest Time</option>
-                  <option value="time_desc_score_asc">Longest Time &bull; Lowest Score</option>
-                </select>
+                  <div className="flex items-center gap-2 truncate">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-[#3760F8] shrink-0" />
+                    <span className="truncate">{SORT_OPTIONS.find((o) => o.value === sortFilter)?.label}</span>
+                  </div>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-200 ${isSortOpen ? 'rotate-180 text-[#3760F8]' : ''}`} />
+                </button>
+
+                {isSortOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-80 bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3.5 py-1.5 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Ranking &amp; Tie-Breaker Filter
+                    </div>
+                    <div className="py-1">
+                      {SORT_OPTIONS.map((opt) => {
+                        const isSelected = sortFilter === opt.value;
+                        return (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            onClick={() => {
+                              setSortFilter(opt.value as any);
+                              setIsSortOpen(false);
+                            }}
+                            className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#EEF2FF] text-[#3760F8] font-bold'
+                                : 'text-slate-700 font-medium hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span>{opt.label}</span>
+                              <span className="text-[10px] text-slate-400 font-normal">{opt.desc}</span>
+                            </div>
+                            {isSelected && (
+                              <div className="w-5 h-5 rounded-full bg-[#3760F8] text-white flex items-center justify-center shrink-0">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

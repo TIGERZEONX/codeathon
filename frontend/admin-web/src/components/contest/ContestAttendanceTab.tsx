@@ -19,7 +19,9 @@ interface AttendanceRecord {
   participantId?: string;
   participantName: string;
   name?: string;
+  email?: string;
   rollNumber: string;
+  department?: string;
   teamName?: string;
   status: 'absent' | 'present' | 'completed';
   loginStatus?: string;
@@ -27,6 +29,7 @@ interface AttendanceRecord {
   submitTimestamp?: string;
   startedAt?: string;
   submittedAt?: string;
+  durationMinutes?: number;
 }
 
 const statusColor: Record<string, 'gray' | 'green' | 'primary'> = {
@@ -51,11 +54,17 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
     id: r.id || r._id || r.userId,
     userId: r.userId || r.participantId,
     participantName: r.participantName || r.name || 'Candidate',
-    rollNumber: r.rollNumber || '—',
+    name: r.name || r.participantName || 'Candidate',
+    email: r.email && r.email !== '—' && r.email !== 'null' ? r.email : (r.userEmail || '—'),
+    rollNumber: r.rollNumber && r.rollNumber !== 'null' ? r.rollNumber : '—',
+    department: r.department || '—',
     teamName: r.teamName,
     status: r.status || 'absent',
     testStartTimestamp: r.testStartTimestamp || r.startedAt,
     submitTimestamp: r.submitTimestamp || r.submittedAt,
+    startedAt: r.startedAt || r.testStartTimestamp,
+    submittedAt: r.submittedAt || r.submitTimestamp,
+    durationMinutes: r.durationMinutes || 0,
   }));
 
   const markMutation = useMutation({
@@ -78,6 +87,8 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
 
   const stats = {
     total: records.length,
+    present: records.filter((r) => r.status === 'present' || r.status === 'completed').length,
+    completed: records.filter((r) => r.status === 'completed').length,
     started: records.filter((r) => r.status === 'present').length,
     submitted: records.filter((r) => r.status === 'completed').length,
     absent: records.filter((r) => r.status === 'absent').length,
@@ -106,9 +117,14 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
     },
     {
       key: 'participantName',
-      header: 'Candidate Name',
+      header: 'Candidate & Email',
       render: (r: AttendanceRecord) => (
-        <span className="text-xs font-semibold text-slate-900 tracking-tight">{r.participantName}</span>
+        <div className="flex flex-col">
+          <span className="text-xs font-semibold text-slate-900 tracking-tight">{r.participantName}</span>
+          {r.email && r.email !== '—' && (
+            <span className="text-[11px] text-slate-500 font-mono mt-0.5">{r.email}</span>
+          )}
+        </div>
       ),
     },
     {
@@ -223,12 +239,15 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() =>
+            onClick={() => {
+              const cTitle = rawRecords[0]?.contestTitle || 'Assessment Contest';
+              const bCode = rawRecords[0]?.batchCode || '—';
               exportAttendanceExcel({
-                contestTitle: 'Contest Attendance',
+                contestTitle: cTitle,
+                batchCode: bCode,
                 records,
-              })
-            }
+              });
+            }}
             leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
           >
             Direct Excel
@@ -236,12 +255,16 @@ export function ContestAttendanceTab({ contestId }: { contestId: string }) {
           <Button
             variant="primary"
             size="sm"
-            onClick={() =>
+            onClick={() => {
+              const cTitle = rawRecords[0]?.contestTitle || 'Assessment Contest';
+              const bCode = rawRecords[0]?.batchCode || '—';
               exportAttendancePdf({
-                contestTitle: 'Contest Attendance',
+                contestTitle: cTitle,
+                batchCode: bCode,
+                stats,
                 records,
-              })
-            }
+              });
+            }}
             leftIcon={<FileText className="w-3.5 h-3.5" />}
           >
             Direct PDF

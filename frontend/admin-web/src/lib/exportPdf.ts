@@ -100,9 +100,14 @@ export function exportAttendancePdf({
   const tableData = records.map((r, index) => {
     const candidateName = r.name || r.participantName || r.userName || 'Candidate';
     const rollNo = r.rollNumber && r.rollNumber !== 'null' ? r.rollNumber : '—';
-    const email = r.email && r.email !== '—' && r.email !== 'null'
-      ? r.email
-      : ((r as any).userEmail && (r as any).userEmail !== '—' ? (r as any).userEmail : '—');
+    const email =
+      (r.email && r.email !== '—' && r.email !== 'null' && r.email) ||
+      ((r as any).userEmail && (r as any).userEmail !== '—' && (r as any).userEmail) ||
+      ((r as any).candidateEmail && (r as any).candidateEmail !== '—' && (r as any).candidateEmail) ||
+      ((r as any).participantEmail && (r as any).participantEmail !== '—' && (r as any).participantEmail) ||
+      ((r as any).participant?.email && (r as any).participant.email !== '—' && (r as any).participant.email) ||
+      ((r as any).user?.email && (r as any).user.email !== '—' && (r as any).user.email) ||
+      '—';
     const team = r.teamName || 'Individual';
     const statusLabel =
       r.status === 'completed'

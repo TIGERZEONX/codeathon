@@ -267,7 +267,7 @@ export class AuthService {
       isSuperAdmin: isSuper,
       permissions: isSuper ? ALL_PERMISSIONS : permissions,
       contestScope: user.contestScope || [],
-      batchCode: matchedBatchContest?.batchCode || user.batchCode || null,
+      batchCode: user.batchCode || null,
     };
 
     const newAccessToken = signAccessToken(tokenPayload);

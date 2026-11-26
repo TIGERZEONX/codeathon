@@ -228,11 +228,18 @@ export class AttemptsService {
       attempt: attempt
         ? {
             id: attempt.id,
+            userId: attempt.userId,
             status: attempt.status,
             startedAt: attempt.startedAt,
+            submittedAt: attempt.submittedAt || attempt.updatedAt || null,
             endsAt: attempt.endsAt,
             remainingSeconds: attempt.remainingSeconds,
-            finalScore: canShowScore ? attempt.finalScore : null,
+            completionTimeSeconds: attempt.completionTimeSeconds || 0,
+            formattedTimeTaken: formatDuration(attempt.completionTimeSeconds || 0),
+            mcqScore: attempt.mcqScore || 0,
+            codingScore: attempt.codingScore || 0,
+            totalScore: canShowScore ? (attempt.totalScore ?? attempt.finalScore ?? 0) : null,
+            finalScore: canShowScore ? (attempt.finalScore ?? attempt.totalScore ?? 0) : null,
           }
         : null,
     };
